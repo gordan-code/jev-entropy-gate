@@ -38,6 +38,8 @@ npm run scan -- \
 ```
 
 > 本项目**不依赖 tsx**：直接用 Node 原生的 TypeScript 支持（`--experimental-strip-types`）运行源码。import 使用 `.ts` 后缀（而非 `.js`），这是 Node 原生 type stripping 的要求，也让 `npm test` / `npm run scan` 不必先 bundle。
+>
+> `--out` 的扩展名决定输出格式：`.html` 结尾出**可视化报告**（自包含单文件，双击浏览器打开），`.json` 结尾出结构化数据。例如把上面命令的 `--out report.json` 改成 `--out report.html` 即可。
 
 输出（终端表格）：
 
@@ -214,7 +216,7 @@ src/
 ├── matcher/          匹配器抽象层（v1 只实现 regex）
 ├── jev/              Jev HTTP 客户端（超时/重试/回退）
 ├── calibration/      阈值自校准（record + calibrate）
-├── report/           终端表格 + JSON 报告
+├── report/           终端表格 + JSON/HTML 报告
 └── scan.ts           编排：并行池 + 聚合
 ```
 

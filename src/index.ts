@@ -4,6 +4,7 @@ import { scan } from "./scan.ts";
 import { getJevApiKey } from "./config.ts";
 import { renderTable } from "./report/table.ts";
 import { toJson } from "./report/json.ts";
+import { toHtml } from "./report/html.ts";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { appendVerdict, loadVerdicts } from "./calibration/record.ts";
@@ -43,7 +44,10 @@ async function runScan(cmd: Extract<Command, { kind: "scan" }>): Promise<number>
   process.stdout.write(renderTable(result) + "\n");
 
   if (cmd.out) {
-    await writeFile(cmd.out, toJson(result), "utf8");
+    // 按扩展名决定输出格式：.html 出可视化报告，其余出 JSON。
+    const isHtml = cmd.out.endsWith(".html") || cmd.out.endsWith(".htm");
+    const content = isHtml ? toHtml(result) : toJson(result);
+    await writeFile(cmd.out, content, "utf8");
     process.stdout.write(`\n报告已写入 ${cmd.out}\n`);
   }
 
