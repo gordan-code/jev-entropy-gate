@@ -18,20 +18,32 @@ export interface Rewrite {
 /**
  * 从 scan 结果里挑出 auto 点，算出每个点替换前后的文本。
  * 只有 auto 点会被改写；assisted 和 manual 点原样不动。
+ *
+ * 改写文本有两个来源：
+ *   - ast-grep 引擎：圈点时已经把替换结果算好，存在 candidate.replacement 里；
+ *   - regex 引擎：这里用 replace 字段对匹配文本做正则替换。
  */
 export function planRewrites(sites: SiteResult[], rule: Rule): Rewrite[] {
-  if (!rule.replace) {
-    throw new Error(`规则 "${rule.id}" 没有 replace 字段，无法执行 apply`);
-  }
-  // 用非全局的正则，对"匹配到的文本"做替换，得到替换后的文本。
-  // 比如 pattern 是 console\.(log|warn|error)\( ，replace 是 logger.$1( ，
-  // 那么 console.warn( 会变成 logger.warn( 。
-  const regex = new RegExp(rule.pattern);
+  // regex 引擎需要 replace 字段；ast-grep 引擎需要 fix 字段（圈点时已用掉）。
+  const regex = rule.engine === "regex" ? new RegExp(rule.pattern) : null;
 
   const rewrites: Rewrite[] = [];
   for (const site of sites) {
     if (site.band !== "auto") continue;
-    const after = site.candidate.matched.replace(regex, rule.replace);
+
+    let after: string;
+    if (site.candidate.replacement !== undefined) {
+      // ast-grep 引擎预填的结果。
+      after = site.candidate.replacement;
+    } else {
+      if (!rule.replace || !regex) {
+        throw new Error(
+          `规则 "${rule.id}" 没有 replace 字段（regex 引擎），无法执行 apply`
+        );
+      }
+      after = site.candidate.matched.replace(regex, rule.replace);
+    }
+
     rewrites.push({
       file: site.candidate.file,
       offset: site.candidate.offset,

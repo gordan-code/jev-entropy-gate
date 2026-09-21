@@ -1,0 +1,15 @@
+# 示例迁移规则：用 ast-grep 把原生 fetch 升级到 apiClient 封装
+# 和 regex 版（migrate.fetch-to-apiclient.yaml）对比：ast-grep 用 AST 模式，
+# 不会匹配到字符串字面量或注释里的 "fetch("。
+id: fetch-to-apiclient-ast
+description: 用 ast-grep 把原生 fetch 升级到 apiClient 封装
+engine: ast-grep
+language: typescript
+pattern: "fetch($$$ARGS)"
+fix: "apiClient($$$ARGS)"
+context: 3
+include:
+  - "src/**"
+task: |
+  我们要把仓库里所有原生 fetch(...) 调用升级到团队的 apiClient 封装，
+  语义保持不变。请判断每个调用点按此任务改写，需要多少判断力。

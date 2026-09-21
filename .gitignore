@@ -3,4 +3,6 @@ dist/
 *.log
 .env
 report.json
+report.html
 .jev-gate/
+.npm-cache/

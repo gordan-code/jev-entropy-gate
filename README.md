@@ -30,9 +30,9 @@
 
 先说清楚它不做什么。
 
-- **它不调 coding agent，也不调 LLM 来改写代码。** 唯一一次模型调用是 `scan` 里的 Jev，而且 Jev 只做判断，不产代码。`apply` 的改写就是规则里写好的正则替换（`console.warn(` 换成 `logger.warn(`），纯字符串操作，没有模型参与。
+- **它不调 coding agent，也不调 LLM 来改写代码。** 唯一一次模型调用是 `scan` 里的 Jev，而且 Jev 只做判断，不产代码。`apply` 的改写就是规则里写好的替换（`console.warn(` 换成 `logger.warn(`），纯字符串或 AST 操作，没有模型参与。
 - **它不是质量打分器。** 它问的是"改这里要不要人判断"，不是"这段代码好不好"。
-- **它不做结构化改写。** 替换是纯正则，改不了 AST 级别的东西（那留给 ast-grep，见 Roadmap）。
+- **regex 引擎做不了结构化改写。** 正则只能做文本替换；要 AST 级别的改写（比如保持嵌套参数不变），用 ast-grep 引擎。
 
 ## 安装和快速开始
 
@@ -69,12 +69,14 @@ fetch-to-apiclient · 把原生 fetch 升级到 apiClient 封装
 
 ## 规则文件格式
 
-规则负责圈出候选点（`pattern`），以及定义怎么替换（`replace`，只有 `apply` 用）：
+规则负责圈出候选点（`pattern`），以及定义怎么替换。两个引擎：
+
+**regex 引擎**（默认），用正则圈点 + 正则替换：
 
 ```yaml
 id: fetch-to-apiclient
 description: 把原生 fetch 升级到 apiClient 封装
-engine: regex                 # 目前只有 regex
+engine: regex
 pattern: "fetch\\s*\\("
 replace: "apiClient("         # 可选，apply 用它做替换
 context: 3                    # 匹配点前后各保留几行，喂给 Jev
@@ -83,6 +85,22 @@ task: |                       # 迁移目标，喂给 Jev
 ```
 
 `replace` 支持正则的 capture group。比如 `pattern: "console\\.(log|warn|error)\\("` 配 `replace: "logger.$1("`，会把 `console.warn(` 变成 `logger.warn(`。
+
+**ast-grep 引擎**，用 AST 模式圈点 + metavariable 改写。AST 模式是语法感知的，不会匹配到字符串或注释里的假点：
+
+```yaml
+id: fetch-to-apiclient-ast
+description: 用 ast-grep 把原生 fetch 升级到 apiClient 封装
+engine: ast-grep
+language: typescript            # 支持 typescript/javascript/tsx/jsx/css/html
+pattern: "fetch($$$ARGS)"       # AST 模式，$$$ARGS 是"零或多个节点"的 metavariable
+fix: "apiClient($$$ARGS)"       # 结构化改写，metavariable 会被替换成匹配到的内容
+context: 3
+task: |
+  把所有原生 fetch(...) 升级到团队的 apiClient 封装，语义保持不变。
+```
+
+ast-grep 的 `$NAME` 匹配单个节点，`$$$NAME` 匹配零或多个节点。`fix` 里的 metavariable 会被替换成匹配到的原文，所以 `fetch("/a", { method: "POST" })` 会变成 `apiClient("/a", { method: "POST" })`，参数原样保留。这是正则做不到的——正则的 capture group 无法平衡匹配嵌套括号。
 
 ## 四个命令
 
@@ -168,7 +186,7 @@ src/
 ├── classify.ts       候选点 → Jev 判定 + 分档合成
 ├── entropy.ts        熵计算
 ├── apply.ts          对 auto 点做替换
-├── matcher/          匹配器抽象层（目前只有 regex）
+├── matcher/          匹配器抽象层（regex + ast-grep）
 ├── jev/              Jev HTTP 客户端
 ├── calibration/      阈值自校准（record + calibrate）
 ├── report/           终端表格 + JSON/HTML 报告
@@ -177,7 +195,6 @@ src/
 
 ## Roadmap
 
-- [ ] `ast-grep` matcher + 结构化改写
 - [ ] 增量扫描缓存（只重判上次变过的点）
 
 ## License

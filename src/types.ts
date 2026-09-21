@@ -19,6 +19,12 @@ export interface Candidate {
   snippet: string;
   /** 匹配到的原文。 */
   matched: string;
+  /**
+   * 改写后的完整文本（可选）。ast-grep 引擎在圈点时就算好，因为它的改写
+   * 依赖 AST 里的 metavariable，离开 parse 上下文就算不出来了。
+   * regex 引擎不填这个字段，改写时用规则的 replace 字段现算。
+   */
+  replacement?: string;
 }
 
 /** The result of Jev classifying one candidate site. */

@@ -56,8 +56,15 @@ async function runScan(cmd: Extract<Command, { kind: "scan" }>): Promise<number>
 
 async function runApply(cmd: Extract<Command, { kind: "apply" }>): Promise<number> {
   const rule = await loadRule(cmd.rules);
-  if (!rule.replace) {
+  // regex 引擎需要 replace 字段，ast-grep 引擎需要 fix 字段。
+  const needsReplace = rule.engine === "regex" && !rule.replace;
+  const needsFix = rule.engine === "ast-grep" && !rule.fix;
+  if (needsReplace) {
     process.stderr.write(`错误：规则 "${rule.id}" 没有 replace 字段，无法执行 apply\n`);
+    return 1;
+  }
+  if (needsFix) {
+    process.stderr.write(`错误：规则 "${rule.id}" 没有 fix 字段，无法执行 apply\n`);
     return 1;
   }
 

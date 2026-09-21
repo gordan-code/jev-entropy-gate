@@ -17,8 +17,9 @@
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/index.js --banner:js=\"#!/usr/bin/env node\""
   },
   "dependencies": {
-    "zod": "4.6.5",
-    "yaml": "2.8.2"
+    "@ast-grep/napi": "^0.45.3",
+    "yaml": "2.8.2",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@types/node": "22.20.3",
