@@ -1,0 +1,10 @@
+# 示例迁移规则：把原生 fetch 升级到团队 apiClient 封装
+id: fetch-to-apiclient
+description: 把原生 fetch 升级到 apiClient 封装
+engine: regex
+language: typescript
+pattern: "fetch\\s*\\("
+context: 3
+task: |
+  我们要把仓库里所有原生 fetch(...) 调用升级到团队的 apiClient 封装，
+  语义保持不变。请判断每个调用点按此任务改写，需要多少判断力。

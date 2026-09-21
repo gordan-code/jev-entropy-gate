@@ -1,0 +1,18 @@
+# 示例迁移规则：把裸 localStorage 访问迁移到带容错的 storage 封装
+# 这是 bilibili-demo 里的真实技术债——videoStore 有两处裸奔访问，
+# 其中 setItem（写操作）在 Safari 隐私模式/配额超限时会抛异常导致崩溃。
+id: localStorage-to-storage
+description: 把裸 localStorage 访问迁移到 storage 封装（保留原有错误处理）
+engine: regex
+language: typescript
+pattern: "window\\.localStorage\\.(getItem|setItem)"
+context: 5
+include:
+  - "src/**"
+task: |
+  我们要把所有 window.localStorage 的直接访问，迁移到团队的 storage 封装
+  （storage.get / storage.set）。注意：storage 封装本身不处理异常，它只是把
+  读写集中到一处。迁移必须保留原有的错误处理行为——原本有 try/catch 的保留，
+  原本没有 try/catch 的，写操作（setItem）应评估是否补上容错，
+  因为 setItem 在 Safari 隐私模式、配额超限时会抛异常。
+  请判断每个访问点按此任务改写，需要多少判断力。

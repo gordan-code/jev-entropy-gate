@@ -1,0 +1,26 @@
+{
+  "name": "jev-entropy-gate",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Use Jev's calibrated probability entropy to decide which migration/refactor sites can be safely automated, and which need a human.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "scan": "node --experimental-strip-types src/index.ts scan",
+    "test": "node --test --experimental-strip-types --experimental-test-isolation=none \"test/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/index.js --banner:js=\"#!/usr/bin/env node\""
+  },
+  "dependencies": {
+    "zod": "4.6.5",
+    "yaml": "2.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.3",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  },
+  "license": "MIT"
+}

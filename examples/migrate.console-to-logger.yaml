@@ -1,0 +1,14 @@
+# 示例迁移规则：把生产代码里的裸 console.* 迁移到统一日志封装 logger
+# 这是 bilibili-demo 前端 src/ 下的真实技术债。
+id: console-to-logger
+description: 把裸 console.warn/error/log 迁移到统一日志封装 logger
+engine: regex
+language: typescript
+pattern: "console\\.(log|warn|error)\\("
+context: 4
+include:
+  - "src/**"
+task: |
+  我们要把生产代码里所有裸的 console.log / console.warn / console.error 调用，
+  迁移到团队的统一日志封装 logger（logger.info / logger.warn / logger.error），
+  语义保持不变。请判断每个调用点按此任务改写，需要多少判断力。
