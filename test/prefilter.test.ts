@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { shouldKeep } from "../src/prefilter.ts";
 
 function cand(matched: string, snippet: string) {
-  return { file: "a.ts", line: 1, column: 1, matched, snippet };
+  return { file: "a.ts", line: 1, column: 1, offset: 0, matched, snippet };
 }
 
 test("keeps a real code site", () => {

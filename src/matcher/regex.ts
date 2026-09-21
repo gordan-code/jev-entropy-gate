@@ -3,9 +3,8 @@ import { compilePattern, type Rule } from "../rules.ts";
 import type { Matcher } from "./types.ts";
 
 /**
- * Regex matcher. Cheap, universal, and good enough for v1. It locates every
- * line position where the pattern matches; the local prefilter and Jev then
- * decide which of those are real rewrite sites.
+ * 用正则圈候选点的匹配器。便宜、通用，v1 够用。
+ * 它找出 pattern 匹配到的每个位置，交给后面的粗过滤和 Jev 判断。
  */
 export class RegexMatcher implements Matcher {
   readonly engine = "regex";
@@ -15,7 +14,7 @@ export class RegexMatcher implements Matcher {
     const lines = content.split("\n");
     const candidates: Candidate[] = [];
 
-    // Build line-start offsets once so we can map a match index -> line:col.
+    // 先把每行开头的字符偏移算出来，方便把"字符偏移"换算成"行号:列号"。
     const lineStarts: number[] = [0];
     for (let i = 0; i < content.length; i++) {
       if (content[i] === "\n") lineStarts.push(i + 1);
@@ -24,10 +23,10 @@ export class RegexMatcher implements Matcher {
     let match: RegExpExecArray | null;
     while ((match = re.exec(content)) !== null) {
       const index = match.index;
-      // Guard against zero-length matches to avoid an infinite loop.
+      // 防止零长度匹配导致死循环。
       if (match[0].length === 0) re.lastIndex += 1;
 
-      // Find the line containing the match start.
+      // 算出匹配开始处在哪一行、哪一列。
       const line = lineNumberAt(lineStarts, index);
       const col = index - lineStarts[line - 1]! + 1;
 
@@ -38,6 +37,8 @@ export class RegexMatcher implements Matcher {
         file: normalizePath(filePath),
         line,
         column: col,
+        // 字符偏移直接交给 apply 命令，做替换时能精确定位。
+        offset: index,
         snippet,
         matched
       });
@@ -47,7 +48,7 @@ export class RegexMatcher implements Matcher {
   }
 }
 
-/** Map a character offset to a 1-based line number via binary search. */
+/** 用二分查找，把字符偏移换算成从 1 数起的行号。 */
 function lineNumberAt(lineStarts: number[], offset: number): number {
   let lo = 0;
   let hi = lineStarts.length - 1;
@@ -59,7 +60,7 @@ function lineNumberAt(lineStarts: number[], offset: number): number {
   return lo + 1;
 }
 
-/** Extract `context` lines before and after the given line (1-based). */
+/** 取给定行（从 1 数起）前后各 context 行的原文。 */
 function buildSnippet(lines: string[], line: number, context: number): string {
   const start = Math.max(1, line - context);
   const end = Math.min(lines.length, line + context);

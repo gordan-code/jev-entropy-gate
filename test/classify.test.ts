@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toSiteResult, resolveBand } from "../src/classify.ts";
 
-const candidate = { file: "a.ts", line: 1, column: 1, snippet: "x", matched: "x" };
+const candidate = { file: "a.ts", line: 1, column: 1, offset: 0, snippet: "x", matched: "x" };
 
 function response(
   choice: string,

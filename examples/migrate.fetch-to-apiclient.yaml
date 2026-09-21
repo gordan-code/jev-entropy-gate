@@ -4,6 +4,7 @@ description: 把原生 fetch 升级到 apiClient 封装
 engine: regex
 language: typescript
 pattern: "fetch\\s*\\("
+replace: "apiClient("
 context: 3
 task: |
   我们要把仓库里所有原生 fetch(...) 调用升级到团队的 apiClient 封装，

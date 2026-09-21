@@ -4,9 +4,11 @@ import { scan } from "./scan.ts";
 import { getJevApiKey } from "./config.ts";
 import { renderTable } from "./report/table.ts";
 import { toJson } from "./report/json.ts";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
+import { resolve, join } from "node:path";
 import { appendVerdict, loadVerdicts } from "./calibration/record.ts";
 import { calibrate } from "./calibration/calibrate.ts";
+import { planRewrites, applyToContent } from "./apply.ts";
 
 export async function main(argv: string[]): Promise<number> {
   try {
@@ -14,6 +16,8 @@ export async function main(argv: string[]): Promise<number> {
     switch (cmd.kind) {
       case "scan":
         return await runScan(cmd);
+      case "apply":
+        return await runApply(cmd);
       case "record":
         return await runRecord(cmd);
       case "calibrate":
@@ -44,6 +48,63 @@ async function runScan(cmd: Extract<Command, { kind: "scan" }>): Promise<number>
   }
 
   return result.evaluated === 0 ? 1 : 0;
+}
+
+async function runApply(cmd: Extract<Command, { kind: "apply" }>): Promise<number> {
+  const rule = await loadRule(cmd.rules);
+  if (!rule.replace) {
+    process.stderr.write(`错误：规则 "${rule.id}" 没有 replace 字段，无法执行 apply\n`);
+    return 1;
+  }
+
+  const apiKey = getJevApiKey();
+  const result = await scan({
+    rule,
+    rootDir: cmd.dir,
+    apiKey,
+    concurrency: cmd.concurrency
+  });
+
+  // 只挑 auto 点，算出每个点的替换前后文本。
+  const rewrites = planRewrites(result.sites, rule);
+  if (rewrites.length === 0) {
+    process.stdout.write(`没有 auto 点需要改写（共 ${result.evaluated} 个候选点）\n`);
+    return 0;
+  }
+
+  // 按文件分组，方便一次读一个文件、统一替换。
+  const byFile = new Map<string, typeof rewrites>();
+  for (const r of rewrites) {
+    const list = byFile.get(r.file) ?? [];
+    list.push(r);
+    byFile.set(r.file, list);
+  }
+
+  const root = resolve(cmd.dir);
+  process.stdout.write(`apply · ${rule.id}\n将改写 ${rewrites.length} 处（涉及 ${byFile.size} 个文件）：\n\n`);
+
+  for (const [file, fileRewrites] of byFile) {
+    const abs = join(root, file);
+    const content = await readFile(abs, "utf8");
+    const newContent = applyToContent(content, fileRewrites);
+
+    // 打印每一处改动，供人工核对。
+    const sorted = [...fileRewrites].sort((a, b) => a.line - b.line);
+    for (const r of sorted) {
+      process.stdout.write(`  ${file}:${r.line}  ${r.before}  →  ${r.after}\n`);
+    }
+
+    if (cmd.write) {
+      await writeFile(abs, newContent, "utf8");
+    }
+  }
+
+  process.stdout.write(
+    cmd.write
+      ? `\n已写回 ${byFile.size} 个文件\n`
+      : `\n预览模式，未写回文件；加 --write 才会真正修改\n`
+  );
+  return 0;
 }
 
 async function runRecord(cmd: Extract<Command, { kind: "record" }>): Promise<number> {

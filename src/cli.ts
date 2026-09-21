@@ -1,6 +1,13 @@
 export type Command =
   | { kind: "scan"; rules: string; dir: string; out?: string; concurrency?: number }
   | {
+      kind: "apply";
+      rules: string;
+      dir: string;
+      write: boolean;
+      concurrency?: number;
+    }
+  | {
       kind: "record";
       data: string;
       choice: string;
@@ -15,6 +22,7 @@ const HELP = `jev-entropy-gate
 
 子命令:
   scan       扫描仓库，逐点判熵并分档
+  apply      对判为 auto 的点执行改写（默认只预览，加 --write 才写回）
   record     追加一条带人工反馈的判定记录（用于自校准）
   calibrate  从反馈记录里重新拟合最优阈值
 
@@ -24,6 +32,12 @@ scan 用法:
     --dir <path>         要扫描的仓库目录
     --out <path>         将结构化 JSON 报告写到该文件（可选）
     --concurrency <n>    并发调用 Jev 的数量（默认 8）
+
+apply 用法:
+  jev-entropy-gate apply --rules <rule.yaml> --dir <dir> [--write] [--concurrency N]
+    --rules <path>       规则文件（YAML，必须含 replace 字段）
+    --dir <path>         要改写的仓库目录
+    --write              真正写回文件；不加则只预览改动
 
 record 用法:
   jev-entropy-gate record --data <verdicts.jsonl> --choice <c> --entropy <0-1> --confidence <0-1> --outcome <ok|flipped>
@@ -47,10 +61,11 @@ export function parseArgs(argv: string[]): Command {
 
   const args = argv.slice(1);
   if (sub === "scan") return parseScan(args);
+  if (sub === "apply") return parseApply(args);
   if (sub === "record") return parseRecord(args);
   if (sub === "calibrate") return parseCalibrate(args);
 
-  throw new Error(`未知子命令 "${sub}"（支持 scan / record / calibrate）`);
+  throw new Error(`未知子命令 "${sub}"（支持 scan / apply / record / calibrate）`);
 }
 
 function get(args: string[], flag: string): string | undefined {
@@ -67,12 +82,21 @@ function parseScan(args: string[]): Command {
   if (!rules) throw new Error("缺少 --rules <rule.yaml>");
   if (!dir) throw new Error("缺少 --dir <path>");
 
-  const concurrency = concurrencyRaw ? Number(concurrencyRaw) : undefined;
-  if (concurrency !== undefined && (!Number.isFinite(concurrency) || concurrency < 1)) {
-    throw new Error("--concurrency 必须是正整数");
-  }
-
+  const concurrency = parseConcurrency(concurrencyRaw);
   return { kind: "scan", rules, dir, out, concurrency };
+}
+
+function parseApply(args: string[]): Command {
+  const rules = get(args, "--rules");
+  const dir = get(args, "--dir");
+  const write = args.includes("--write");
+  const concurrencyRaw = get(args, "--concurrency");
+
+  if (!rules) throw new Error("缺少 --rules <rule.yaml>");
+  if (!dir) throw new Error("缺少 --dir <path>");
+
+  const concurrency = parseConcurrency(concurrencyRaw);
+  return { kind: "apply", rules, dir, write, concurrency };
 }
 
 function parseRecord(args: string[]): Command {
@@ -106,4 +130,13 @@ function parseCalibrate(args: string[]): Command {
   const data = get(args, "--data");
   if (!data) throw new Error("缺少 --data <verdicts.jsonl>");
   return { kind: "calibrate", data };
+}
+
+function parseConcurrency(raw: string | undefined): number | undefined {
+  if (raw === undefined) return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) {
+    throw new Error("--concurrency 必须是正整数");
+  }
+  return n;
 }

@@ -9,6 +9,7 @@
   },
   "scripts": {
     "scan": "node --experimental-strip-types src/index.ts scan",
+    "apply": "node --experimental-strip-types src/index.ts apply",
     "record": "node --experimental-strip-types src/index.ts record",
     "calibrate": "node --experimental-strip-types src/index.ts calibrate",
     "test": "node --test --experimental-strip-types --experimental-test-isolation=none \"test/*.test.ts\"",

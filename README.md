@@ -18,7 +18,7 @@
 
 ## 它不做什么（边界）
 
-- ❌ **不执行改写**。它只「圈出候选点 + 判断每个点能不能自动化」。真正改写交给 ast-grep / codemod / coding agent。
+- ⚠️ **改写能力有限**。`scan` 只「圈点 + 判断」；`apply` 只会对 auto 点做**机械的正则替换**（如 `console.warn(` → `logger.warn(`），不做结构性改写——那交给 ast-grep / codemod（v2）。
 - ❌ 不是 MCP，不是给 coding agent 的反馈环。它是一个**独立 CLI**，服务对象是**人和自动化流水线**。
 - ❌ 不是质量打分器。它问的是**「改这里要不要人判断」**，不是「这段代码好不好」。
 
@@ -60,7 +60,7 @@ fetch-to-apiclient · 把原生 fetch 升级到 apiClient 封装
 
 ## 规则文件怎么写
 
-规则**只负责圈出候选改动点**，不负责改写：
+规则负责**圈出候选点**，`replace` 字段负责**定义怎么替换**（只有 `apply` 命令用到它）：
 
 ```yaml
 id: fetch-to-apiclient
@@ -68,10 +68,13 @@ description: 把原生 fetch 升级到 apiClient 封装
 engine: regex                 # v1 只有 regex（ast-grep 预留 v2）
 language: typescript
 pattern: "fetch\\s*\\("
+replace: "apiClient("         # 替换映射：匹配到的文本做正则替换（可选）
 context: 3                    # 前后各 3 行，喂给 Jev 的上下文
 task: |                       # 迁移目标和背景，喂给 Jev
   把所有原生 fetch(...) 升级到团队的 apiClient 封装，语义保持不变。
 ```
+
+`replace` 用正则的 capture group 语法。比如 `pattern: "console\\.(log|warn|error)\\("` + `replace: "logger.$1("`，会把 `console.warn(` 变成 `logger.warn(`。
 
 ## 工作原理（管线）
 
@@ -161,11 +164,44 @@ node --experimental-strip-types src/index.ts calibrate --data verdicts.jsonl
 
 > 一个反直觉的细节：如果反馈里**没有翻车**，校准会往"最宽松"方向调（最大化 auto）。这不是 bug——没有坏记录时，理性选择就是大胆自动化。翻车数据一进来，阈值立刻收紧。
 
+## apply 命令（对 auto 点执行改写）
+
+`apply` 先跑一遍 `scan`，然后把**判为 auto 的点**按规则里的 `replace` 字段做机械替换：
+
+```bash
+# 默认预览，不写回文件
+node --experimental-strip-types src/index.ts apply \
+  --rules examples/migrate.console-to-logger.yaml \
+  --dir /path/to/repo
+
+# 加 --write 才真正写回
+node --experimental-strip-types src/index.ts apply \
+  --rules examples/migrate.console-to-logger.yaml \
+  --dir /path/to/repo --write
+```
+
+输出示例（预览模式）：
+
+```
+apply · console-to-logger
+将改写 11 处（涉及 3 个文件）：
+
+  src/stores/themeStore.ts:15  console.warn(  →  logger.warn(
+  src/stores/themeStore.ts:41  console.warn(  →  logger.warn(
+  ...
+```
+
+三条关键规则：
+
+- **只改 auto 点**。assisted / manual 点一律不动——它们正是"需要人判断"的地方，自动改反而危险。
+- **默认 dry-run**。不写回文件，先看预览；确认没问题再加 `--write`。
+- **只做机械替换**。`replace` 是纯正则替换，改不了结构（那留给 ast-grep v2）。
+
 ## 目录结构
 
 ```
 src/
-├── index.ts          CLI 入口（scan / record / calibrate）
+├── index.ts          CLI 入口（scan / apply / record / calibrate）
 ├── cli.ts            参数解析
 ├── config.ts         JEV_API_KEY
 ├── rules.ts          规则 schema（zod）+ YAML 加载
@@ -174,6 +210,7 @@ src/
 ├── glob.ts           include/exclude 的极简 glob 匹配
 ├── classify.ts       一个候选点 → Jev 判定 + 三信号合成
 ├── entropy.ts        熵计算
+├── apply.ts          对 auto 点做机械替换
 ├── matcher/          匹配器抽象层（v1 只实现 regex）
 ├── jev/              Jev HTTP 客户端（超时/重试/回退）
 ├── calibration/      阈值自校准（record + calibrate）
@@ -183,8 +220,7 @@ src/
 
 ## Roadmap
 
-- [ ] v2：`apply` 命令，对 `auto` 点执行真实改写（接 ast-grep）
-- [ ] v2：`ast-grep` matcher（接口已留好）
+- [ ] v2：`ast-grep` matcher + 结构化改写（接口已留好）
 - [ ] v2：HTML 可视化报告
 - [ ] v3：增量扫描缓存（只重判上次变过的点）
 

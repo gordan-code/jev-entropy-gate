@@ -6,6 +6,7 @@ description: 把裸 localStorage 访问迁移到 storage 封装（保留原有�
 engine: regex
 language: typescript
 pattern: "window\\.localStorage\\.(getItem|setItem)"
+replace: "storage.$1"
 context: 5
 include:
   - "src/**"

@@ -5,17 +5,19 @@
 /** The three automation bands derived from Jev's probability entropy. */
 export type EntropyBand = "auto" | "assisted" | "manual";
 
-/** A single candidate rewrite site located by a matcher, before Jev evaluates it. */
+/** 一个由 matcher 圈出的候选改写点，还没经过 Jev 判定。 */
 export interface Candidate {
-  /** Path relative to the scanned root, using forward slashes. */
+  /** 相对扫描根目录的文件路径，用正斜杠。 */
   file: string;
-  /** 1-based line number where the match begins. */
+  /** 匹配开始的行号（从 1 数）。 */
   line: number;
-  /** 1-based column (character) where the match begins. */
+  /** 匹配开始的列号（从 1 数）。 */
   column: number;
-  /** The matched line(s) plus surrounding context, as raw text. */
+  /** 匹配文本在文件内容里的字符偏移（从 0 数），apply 命令用它精确定位要替换的位置。 */
+  offset: number;
+  /** 匹配行加上前后 context 行的原文。 */
   snippet: string;
-  /** The raw matched text (single line or the matched portion). */
+  /** 匹配到的原文。 */
   matched: string;
 }
 

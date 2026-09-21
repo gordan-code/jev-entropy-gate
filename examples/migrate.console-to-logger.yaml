@@ -5,6 +5,7 @@ description: 把裸 console.warn/error/log 迁移到统一日志封装 logger
 engine: regex
 language: typescript
 pattern: "console\\.(log|warn|error)\\("
+replace: "logger.$1("
 context: 4
 include:
   - "src/**"
