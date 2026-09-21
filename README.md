@@ -1,59 +1,61 @@
 # jev-entropy-gate
 
-用 Jev 的概率熵，判断一批代码迁移/重构点里，哪些可以放心自动改，哪些要人来判断。
+English | [中文](./README.zh-CN.md)
 
-## 它解决什么问题
+Uses Jev's probability entropy to decide which code-migration/refactor sites can be safely auto-rewritten, and which need a human.
 
-做大规模代码迁移（比如把 `fetch` 全换成 `apiClient`、把 `console.error` 换成统一的 `logger`）时，候选改动点通常分三类：
+## What problem it solves
 
-- 大部分是机械替换，闭着眼睛改都不会错；
-- 少部分需要理解上下文才能改对；
-- 极少数改错了会出事（错误处理、并发和边界情况）。
+During a large migration (say, replacing every `fetch` with `apiClient`, or every `console.error` with a unified `logger`), candidate sites usually fall into three buckets:
 
-用 LLM 去逐个判断太慢太贵，用正则脚本一把梭又容易在"需要理解"的那部分翻车。
+- Most are mechanical replacements you can't get wrong;
+- Some need context to rewrite correctly;
+- A few will break things if rewritten (error handling, concurrency, edge cases).
 
-这个工具的做法，把每个候选点丢给 Jev，让它回答"改这里需要多少判断力"，再用概率分布的**熵**（有多确定）把候选点分成三档：
+Judging each site with an LLM is slow and expensive; running a regex across everything risks breaking the "needs context" cases.
 
-| 概率分布 | 熵 | 结果 |
+This tool sends each candidate to Jev and asks "how much judgment does rewriting this take", then uses the **entropy** of the probability distribution (how certain Jev is) to split candidates into three tiers:
+
+| Probability distribution | Entropy | Result |
 |---|---|---|
-| `{0.98, 0.01, 0.01}` | 低，很确定 | auto，自动改 |
-| `{0.60, 0.30, 0.10}` | 中，有倾向但犹豫 | assisted，AI 改 + 人复核 |
-| `{0.34, 0.33, 0.33}` | 高，拿不准 | manual，人来改 |
+| `{0.98, 0.01, 0.01}` | low, very certain | auto, rewrite automatically |
+| `{0.60, 0.30, 0.10}` | medium, leans but hesitates | assisted, AI rewrites + human review |
+| `{0.34, 0.33, 0.33}` | high, unsure | manual, human rewrites |
 
-## 它是什么、不是什么
+## What it is and isn't
 
-`jev-entropy-gate` 是一个命令行工具，四个子命令：
+`jev-entropy-gate` is a CLI with four subcommands:
 
-- `scan`：扫描仓库，逐点问 Jev，输出分档结果；
-- `apply`：对 auto 点执行改写；
-- `record` / `calibrate`：记录翻车反馈，回头校准判定阈值。
+- `scan`: scan a repo, ask Jev per site, output tiers;
+- `apply`: rewrite the auto sites;
+- `record` / `calibrate`: log flips, then re-fit the decision thresholds.
 
-先说清楚它不做什么。
+Some boundaries first:
 
-- **它不调 coding agent，也不调 LLM 来改写代码。** 唯一一次模型调用是 `scan` 里的 Jev，而且 Jev 只做判断，不产代码。`apply` 的改写就是规则里写好的替换（`console.warn(` 换成 `logger.warn(`），纯字符串或 AST 操作，没有模型参与。
-- **它不是质量打分器。** 它问的是"改这里要不要人判断"，不是"这段代码好不好"。
-- **regex 引擎做不了结构化改写。** 正则只能做文本替换；要 AST 级别的改写（比如保持嵌套参数不变），用 ast-grep 引擎。
+- **It does not call a coding agent, nor an LLM, to rewrite code.** The only model call is Jev inside `scan`, and Jev only judges — it produces no code. `apply`'s rewrite is the replacement written in the rule (`console.warn(` to `logger.warn(`), a pure string or AST operation with no model involved.
+- **It is not a quality scorer.** It asks "does rewriting this need a human", not "is this code good".
+- **The regex engine can't do structural rewrites.** Regex does text replacement only; for AST-level rewrites (e.g. preserving nested arguments), use the ast-grep engine.
 
-## 安装和快速开始
+## Install and quick start
 
-需要 Node.js 22.18 以上（用 Node 原生 TypeScript 支持直接跑源码，不依赖 tsx）。
+Requires Node.js 22.18+ (uses Node's native TypeScript support, no tsx).
 
-两种用法：装成全局命令 `jevg`，或者直接跑源码脚本。
+Two ways to run: install as the global `jevg` command, or run the source directly.
 
-### 装成命令行（推荐）
+### As a command (recommended)
 
-在项目目录里执行，把 `jevg` 命令装到全局：
+From the project directory, install the `jevg` command globally:
 
 ```bash
 npm install -g .
-# 或者开发时用软链接，改代码即时生效：
+# or, for development with a symlink so changes apply instantly:
 # npm link
 ```
 
-之后任何目录都能用 `jevg`：
+Then `jevg` works from any directory:
 
 ```bash
-export JEV_API_KEY="..."   # 从 https://console.typesafe.ai/ 获取
+export JEV_API_KEY="..."   # get one at https://console.typesafe.ai/
 
 jevg scan --rules rules.yaml --dir /path/to/repo --out report.json
 jevg apply --rules rules.yaml --dir /path/to/repo --write
@@ -61,9 +63,9 @@ jevg record --data verdicts.jsonl --choice deterministic --entropy 0.7 --confide
 jevg calibrate --data verdicts.jsonl
 ```
 
-### 直接跑源码脚本
+### Run the source directly
 
-不装全局也行，用 Node 原生 TS 支持直接跑：
+Or skip the global install and run with Node's native TS support:
 
 ```bash
 export JEV_API_KEY="..."
@@ -75,9 +77,9 @@ node --experimental-strip-types src/index.ts scan \
   --out report.json
 ```
 
-`--out` 的扩展名决定输出格式：`.html` 出可视化报告（自包含单文件，浏览器打开），`.json` 出结构化数据。
+The `--out` extension picks the format: `.html` produces a self-contained visual report (open in a browser), `.json` produces structured data.
 
-终端输出长这样：
+Terminal output looks like:
 
 ```
 fetch-to-apiclient · 把原生 fetch 升级到 apiClient 封装
@@ -94,145 +96,145 @@ fetch-to-apiclient · 把原生 fetch 升级到 apiClient 封装
 汇总：可全自动 40% · AI改+人复核 40% · 纯人工 20%
 ```
 
-## 规则文件格式
+## Rule file format
 
-规则负责圈出候选点（`pattern`），以及定义怎么替换。两个引擎：
+A rule locates candidate sites (`pattern`) and defines how to rewrite them. Two engines:
 
-**regex 引擎**（默认），用正则圈点 + 正则替换：
+**regex engine** (default), regex matching + regex replacement:
 
 ```yaml
 id: fetch-to-apiclient
 description: 把原生 fetch 升级到 apiClient 封装
 engine: regex
 pattern: "fetch\\s*\\("
-replace: "apiClient("         # 可选，apply 用它做替换
-context: 3                    # 匹配点前后各保留几行，喂给 Jev
-task: |                       # 迁移目标，喂给 Jev
+replace: "apiClient("         # optional, apply uses it for the rewrite
+context: 3                    # context lines on each side, fed to Jev
+task: |                       # migration goal, fed to Jev
   把所有原生 fetch(...) 升级到团队的 apiClient 封装，语义保持不变。
 ```
 
-`replace` 支持正则的 capture group。比如 `pattern: "console\\.(log|warn|error)\\("` 配 `replace: "logger.$1("`，会把 `console.warn(` 变成 `logger.warn(`。
+`replace` supports regex capture groups. `pattern: "console\\.(log|warn|error)\\("` with `replace: "logger.$1("` turns `console.warn(` into `logger.warn(`.
 
-**ast-grep 引擎**，用 AST 模式圈点 + metavariable 改写。AST 模式是语法感知的，不会匹配到字符串或注释里的假点：
+**ast-grep engine**, AST-pattern matching + metavariable rewrite. AST patterns are syntax-aware, so they don't match false positives inside strings or comments:
 
 ```yaml
 id: fetch-to-apiclient-ast
 description: 用 ast-grep 把原生 fetch 升级到 apiClient 封装
 engine: ast-grep
-language: typescript            # 支持 typescript/javascript/tsx/jsx/css/html
-pattern: "fetch($$$ARGS)"       # AST 模式，$$$ARGS 是"零或多个节点"的 metavariable
-fix: "apiClient($$$ARGS)"       # 结构化改写，metavariable 会被替换成匹配到的内容
+language: typescript            # typescript/javascript/tsx/jsx/css/html
+pattern: "fetch($$$ARGS)"       # AST pattern; $$$ARGS is a "zero or more nodes" metavariable
+fix: "apiClient($$$ARGS)"       # structural rewrite; metavariables are replaced with matched text
 context: 3
 task: |
   把所有原生 fetch(...) 升级到团队的 apiClient 封装，语义保持不变。
 ```
 
-ast-grep 的 `$NAME` 匹配单个节点，`$$$NAME` 匹配零或多个节点。`fix` 里的 metavariable 会被替换成匹配到的原文，所以 `fetch("/a", { method: "POST" })` 会变成 `apiClient("/a", { method: "POST" })`，参数原样保留。这是正则做不到的——正则的 capture group 无法平衡匹配嵌套括号。
+ast-grep's `$NAME` matches a single node, `$$$NAME` matches zero or more. Metavariables in `fix` are replaced with the matched source, so `fetch("/a", { method: "POST" })` becomes `apiClient("/a", { method: "POST" })` with the arguments intact. Regex can't do this — capture groups can't balance nested parentheses.
 
-## 四个命令
+## The four commands
 
 ### scan
 
-扫描仓库，逐点问 Jev，输出分档。这是其它命令的基础。
+Scan a repo, ask Jev per site, output tiers. The basis for everything else.
 
 ```bash
 node --experimental-strip-types src/index.ts scan \
   --rules rules.yaml --dir /path/to/repo --out report.json
 ```
 
-加 `--cache <file>` 开启增量扫描：内容没变的文件直接复用上次判定，不重新问 Jev，省调用。规则或阈值变了，缓存会自动失效，全部重判。
+Add `--cache <file>` for incremental scanning: files whose content hasn't changed reuse the previous verdict without calling Jev again. If the rule or thresholds change, the cache invalidates and everything is re-judged.
 
 ```bash
 node --experimental-strip-types src/index.ts scan \
   --rules rules.yaml --dir /path/to/repo --cache .jev-cache.json
 ```
 
-第二次跑同一个仓库时，输出末尾会多一行「缓存：复用 N 处，重判 M 处」。
+On the second run over the same repo, output ends with a line like `缓存：复用 N 处，重判 M 处`.
 
 ### apply
 
-对 auto 点执行改写。先跑一遍 scan，再把判为 auto 的点按 `replace` 字段替换。默认只预览，加 `--write` 才真正写回。
+Rewrite the auto sites. Runs a scan first, then replaces the auto-tier sites using the rule's `replace` field. Previews by default; add `--write` to actually write files.
 
 ```bash
-# 预览，不写文件
+# preview, no file writes
 node --experimental-strip-types src/index.ts apply \
   --rules rules.yaml --dir /path/to/repo
 
-# 真正写回
+# actually write
 node --experimental-strip-types src/index.ts apply \
   --rules rules.yaml --dir /path/to/repo --write
 ```
 
-只改 auto 点，assisted 和 manual 一律不动；替换是纯正则，不涉及模型。
+Two notes: only auto sites are touched (assisted and manual are left alone); the replacement is a pure regular expression with no model involved.
 
 ### record / calibrate
 
-判定用的两个阈值（`highEntropy`、`automateVeto`）是写死的默认值。如果想让它们跟着实际结果调，可以记录翻车反馈再重新拟合：
+The two decision thresholds (`highEntropy`, `automateVeto`) are hard-coded defaults. To tune them against real outcomes, record flips then re-fit:
 
 ```bash
-# 记录一条判定 + 人工反馈（outcome 填 ok 或 flipped）
+# record one verdict + human feedback (outcome is ok or flipped)
 node --experimental-strip-types src/index.ts record \
   --data verdicts.jsonl \
   --choice deterministic --entropy 0.70 --confidence 0.8 --outcome flipped
 
-# 从所有反馈里重新拟合阈值
+# re-fit thresholds from all feedback
 node --experimental-strip-types src/index.ts calibrate --data verdicts.jsonl
 ```
 
-`calibrate` 做网格搜索，先保证 auto 不翻车，再尽量多自动化。
+`calibrate` grid-searches, first guaranteeing no auto flips, then maximizing automation.
 
-## 设计上的一些说明
+## Design notes
 
-这部分是实际用下来踩过坑之后的记录，不是必须读，但写规则时有用。
+Notes from real usage, not required reading, but useful when writing rules.
 
-### task 措辞会直接改变判定结果
+### task wording directly changes the verdict
 
-Jev 严格按你写的 `task` 来判断。同一个代码位置，`task` 差一句话，结果可能完全反：
+Jev judges strictly by the `task` you write. The same code site can flip completely with one different phrase:
 
-| task 说法 | 同一个 `setItem` 的判定 |
+| task wording | verdict on the same `setItem` |
 |---|---|
-| "封装**内部处理**异常" | deterministic 0.81，判 auto |
-| "封装**不处理**异常 + **保留**错误处理 + 裸奔写**补容错**" | judgment 0.50，判 manual |
+| "封装**内部处理**异常" | deterministic 0.81, auto |
+| "封装**不处理**异常 + **保留**错误处理 + 裸奔写**补容错**" | judgment 0.50, manual |
 
-所以写 task 时把迁移语义说清楚，谁处理异常、原有 try/catch 留不留，比挑 pattern 更重要。
+So be precise about the migration semantics in `task` — who handles errors, whether existing try/catch stays, how edge cases are defined — more important than picking the pattern.
 
-### 分档是怎么算出来的
+### How tiers are computed
 
-每个候选点问 Jev 两个问题，一个 Choice（"改这里要多少判断力"，选项是 deterministic / judgment / manual），一个 Noul（"自动改完不用人复核的概率"）。最终分档分三步。
+Each site asks Jev two questions: a Choice ("how much judgment does rewriting this take", options deterministic / judgment / manual) and a Noul ("probability no human review is needed after auto-rewrite"). The final tier comes in three steps:
 
-1. Choice 的结果定个基线：deterministic → auto，judgment → assisted，manual → manual；
-2. 熵做修正：熵高（Jev 自己都不确定）就往保守方向降一档；
-3. Noul 兜底：Noul 概率特别低（≤0.3）时，把 auto 降成 assisted。
+1. Choice sets a baseline: deterministic → auto, judgment → assisted, manual → manual;
+2. Entropy corrects: high entropy (Jev unsure of itself) demotes one notch toward conservative;
+3. Noul is the fuse: a very low Noul (≤0.3) demotes auto to assisted.
 
-### 熵高、置信度低，通常是 task 写含糊了
+### High entropy + low confidence usually means the task is vague
 
-如果一次扫描下来熵普遍偏高、置信度普遍偏低，结果都挤在中间档，多半是 task 描述有歧义，问题不在 Jev。把迁移语义定义清楚，结果会重新变得三档分明。
+If a scan comes back with uniformly high entropy and low confidence, with results clustered in the middle tier, the task description is probably ambiguous — it's not Jev failing. Clarify the migration semantics and the results separate into three distinct tiers again.
 
-## 目录结构
+## Directory layout
 
 ```
 src/
-├── index.ts          CLI 入口（scan / apply / record / calibrate）
-├── cli.ts            参数解析
+├── index.ts          CLI entry (scan / apply / record / calibrate)
+├── cli.ts            argument parsing
 ├── config.ts         JEV_API_KEY
-├── rules.ts          规则 schema + YAML 加载
-├── locate.ts         遍历文件 → matcher → 粗过滤
-├── prefilter.ts      注释/字符串剔除
-├── glob.ts           include/exclude 的 glob 匹配
-├── classify.ts       候选点 → Jev 判定 + 分档合成
-├── entropy.ts        熵计算
-├── apply.ts          对 auto 点做替换
-├── cache.ts          增量扫描缓存
-├── matcher/          匹配器抽象层（regex + ast-grep）
-├── jev/              Jev HTTP 客户端
-├── calibration/      阈值自校准（record + calibrate）
-├── report/           终端表格 + JSON/HTML 报告
-└── scan.ts           编排：并行池 + 聚合
+├── rules.ts          rule schema + YAML loading
+├── locate.ts         walk files → matcher → prefilter
+├── prefilter.ts      strip comments/strings
+├── glob.ts           include/exclude glob matching
+├── classify.ts       candidate → Jev verdict + tier synthesis
+├── entropy.ts        entropy calculation
+├── apply.ts          rewrite auto sites
+├── cache.ts          incremental scan cache
+├── matcher/          matcher abstraction (regex + ast-grep)
+├── jev/              Jev HTTP client
+├── calibration/      threshold self-calibration (record + calibrate)
+├── report/           terminal table + JSON/HTML report
+└── scan.ts           orchestration: concurrency pool + aggregation
 ```
 
 ## Roadmap
 
-暂无待办项。
+Nothing pending.
 
 ## License
 
