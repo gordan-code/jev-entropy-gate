@@ -138,20 +138,45 @@ Jev 严格按你给的迁移语义来判定，**task 里每一个措辞都会改
 
 > 把 `jev-entropy-gate` 当仪表用：清晰的定义 → 熵低、置信高、三档分明；含糊的定义 → 熵高、置信低、全挤中间。它顺带帮你检验"你自己想清楚要迁什么了没有"。
 
+## 阈值自校准
+
+`resolveBand` 里的两个阈值（`highEntropy = 0.65`、`automateVeto = 0.3`）是启发式起点，不是真理。当你积累了真实的"翻车反馈"后，可以让它们自己长出来：
+
+```bash
+# 1. 记录一条判定 + 人工反馈（choice / entropy / confidence / outcome）
+node --experimental-strip-types src/index.ts record \
+  --data verdicts.jsonl \
+  --choice deterministic --entropy 0.70 --confidence 0.8 --outcome flipped
+
+# 2. 从所有反馈里重新拟合最优阈值
+node --experimental-strip-types src/index.ts calibrate --data verdicts.jsonl
+```
+
+`calibrate` 用网格搜索，目标**按优先级**：
+
+1. **最小化 `auto` 翻车数**——自动改了却需要返工，是最贵的失败，所以安全优先。
+2. **同翻车数下最大化 `auto` 成功数**——多自动化、少浪费人工 review。
+
+拟合结果会直接告诉你：该把 `highEntropy` / `automateVeto` 调到多少，以及是否优于当前默认值。
+
+> 一个反直觉的细节：如果反馈里**没有翻车**，校准会往"最宽松"方向调（最大化 auto）。这不是 bug——没有坏记录时，理性选择就是大胆自动化。翻车数据一进来，阈值立刻收紧。
+
 ## 目录结构
 
 ```
 src/
-├── index.ts          CLI 入口
+├── index.ts          CLI 入口（scan / record / calibrate）
 ├── cli.ts            参数解析
 ├── config.ts         JEV_API_KEY
 ├── rules.ts          规则 schema（zod）+ YAML 加载
 ├── locate.ts         遍历文件 → matcher → 粗过滤
 ├── prefilter.ts      注释/字符串剔除
-├── classify.ts       一个候选点 → Jev 判定 + 双信号合成
-├── entropy.ts        熵计算 + 分档
-├── matcher/          匹配器抽象层（C 方案：接口化，v1 只实现 regex）
+├── glob.ts           include/exclude 的极简 glob 匹配
+├── classify.ts       一个候选点 → Jev 判定 + 三信号合成
+├── entropy.ts        熵计算
+├── matcher/          匹配器抽象层（v1 只实现 regex）
 ├── jev/              Jev HTTP 客户端（超时/重试/回退）
+├── calibration/      阈值自校准（record + calibrate）
 ├── report/           终端表格 + JSON 报告
 └── scan.ts           编排：并行池 + 聚合
 ```
@@ -160,7 +185,6 @@ src/
 
 - [ ] v2：`apply` 命令，对 `auto` 点执行真实改写（接 ast-grep）
 - [ ] v2：`ast-grep` matcher（接口已留好）
-- [ ] v2：阈值自校准——回看低熵点实际翻车率，自动调整熵阈值
 - [ ] v2：HTML 可视化报告
 - [ ] v3：增量扫描缓存（只重判上次变过的点）
 

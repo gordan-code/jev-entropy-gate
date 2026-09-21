@@ -87,16 +87,24 @@ const CHOICE_BASELINE: Record<string, EntropyBand> = {
   manual: "manual"
 };
 
-/**
- * Entropy above this means Jev is itself unsure which class the site belongs
- * to, so we demote the baseline one notch toward conservative.
- * From real runs: a confident pick sits ~0.35, a hesitant pick ~0.71, a near
- * flat one ~0.92, so 0.65 cleanly separates "sure" from "unsure".
- */
-const HIGH_ENTROPY = 0.65;
+/** Tunable thresholds used to synthesize the final band. */
+export interface Thresholds {
+  /** Entropy at or above this demotes the baseline one notch toward conservative. */
+  highEntropy: number;
+  /** Noul at or below this vetoes an `auto` (the safety fuse). */
+  automateVeto: number;
+}
 
-/** Noul at or below this vetoes an `auto` (the safety fuse). */
-const AUTOMATE_VETO = 0.3;
+/**
+ * Default thresholds, chosen from the real-run entropy ladder: a confident
+ * pick sits ~0.35, a hesitant pick ~0.71, a near-flat one ~0.92, so 0.65
+ * cleanly separates "sure" from "unsure". These are starting points; the
+ * `calibrate` command re-fits them from labeled flip feedback.
+ */
+export const DEFAULT_THRESHOLDS: Thresholds = {
+  highEntropy: 0.65,
+  automateVeto: 0.3
+};
 
 /**
  * Final band synthesis. The signals play distinct roles:
@@ -118,18 +126,19 @@ const AUTOMATE_VETO = 0.3;
 export function resolveBand(
   choice: string,
   normalizedEntropy: number,
-  automateConfidence: number
+  automateConfidence: number,
+  thresholds: Thresholds = DEFAULT_THRESHOLDS
 ): EntropyBand {
   // 1. Baseline from what Jev actually picked.
   let band: EntropyBand = CHOICE_BASELINE[choice] ?? "manual";
 
   // 2. Entropy correction: unsure Jev demotes one notch (never promotes).
-  if (normalizedEntropy >= HIGH_ENTROPY && band !== "manual") {
+  if (normalizedEntropy >= thresholds.highEntropy && band !== "manual") {
     band = demote(band);
   }
 
   // 3. Noul safety fuse: very low automate-confidence vetoes `auto`.
-  if (band === "auto" && automateConfidence <= AUTOMATE_VETO) {
+  if (band === "auto" && automateConfidence <= thresholds.automateVeto) {
     band = "assisted";
   }
 

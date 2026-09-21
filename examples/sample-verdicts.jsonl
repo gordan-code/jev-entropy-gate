@@ -1,0 +1,6 @@
+﻿{"choice":"deterministic","entropy":0.35,"automateConfidence":0.8,"outcome":"ok"}
+{"choice":"deterministic","entropy":0.40,"automateConfidence":0.8,"outcome":"ok"}
+{"choice":"deterministic","entropy":0.45,"automateConfidence":0.8,"outcome":"ok"}
+{"choice":"deterministic","entropy":0.70,"automateConfidence":0.8,"outcome":"flipped"}
+{"choice":"deterministic","entropy":0.75,"automateConfidence":0.8,"outcome":"flipped"}
+{"choice":"manual","entropy":0.9,"automateConfidence":0.4,"outcome":"ok"}
