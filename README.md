@@ -38,11 +38,38 @@
 
 需要 Node.js 22.18 以上（用 Node 原生 TypeScript 支持直接跑源码，不依赖 tsx）。
 
+两种用法：装成全局命令 `jevg`，或者直接跑源码脚本。
+
+### 装成命令行（推荐）
+
+在项目目录里执行，把 `jevg` 命令装到全局：
+
+```bash
+npm install -g .
+# 或者开发时用软链接，改代码即时生效：
+# npm link
+```
+
+之后任何目录都能用 `jevg`：
+
 ```bash
 export JEV_API_KEY="..."   # 从 https://console.typesafe.ai/ 获取
 
+jevg scan --rules rules.yaml --dir /path/to/repo --out report.json
+jevg apply --rules rules.yaml --dir /path/to/repo --write
+jevg record --data verdicts.jsonl --choice deterministic --entropy 0.7 --confidence 0.8 --outcome flipped
+jevg calibrate --data verdicts.jsonl
+```
+
+### 直接跑源码脚本
+
+不装全局也行，用 Node 原生 TS 支持直接跑：
+
+```bash
+export JEV_API_KEY="..."
+
 npm install
-npm run scan -- \
+node --experimental-strip-types src/index.ts scan \
   --rules examples/migrate.fetch-to-apiclient.yaml \
   --dir examples/demo-project \
   --out report.json

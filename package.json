@@ -4,6 +4,9 @@
   "private": true,
   "description": "Use Jev's calibrated probability entropy to decide which migration/refactor sites can be safely automated, and which need a human.",
   "type": "module",
+  "bin": {
+    "jevg": "bin/jevg.mjs"
+  },
   "engines": {
     "node": ">=22.18"
   },
