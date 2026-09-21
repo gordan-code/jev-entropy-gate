@@ -60,4 +60,11 @@ export interface ScanResult {
   summary: Record<EntropyBand, number>;
   /** Summary percentages per band (0..100, rounded). */
   summaryPct: Record<EntropyBand, number>;
+  /** 增量缓存的统计，没开缓存时是 undefined。 */
+  cacheStats?: {
+    /** 从缓存复用的判定数（没重新问 Jev）。 */
+    reusedSites: number;
+    /** 重新问 Jev 的判定数。 */
+    rejudgedSites: number;
+  };
 }

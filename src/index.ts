@@ -38,10 +38,17 @@ async function runScan(cmd: Extract<Command, { kind: "scan" }>): Promise<number>
     rule,
     rootDir: cmd.dir,
     apiKey,
-    concurrency: cmd.concurrency
+    concurrency: cmd.concurrency,
+    cachePath: cmd.cache
   });
 
   process.stdout.write(renderTable(result) + "\n");
+
+  if (result.cacheStats) {
+    process.stdout.write(
+      `缓存：复用 ${result.cacheStats.reusedSites} 处，重判 ${result.cacheStats.rejudgedSites} 处\n`
+    );
+  }
 
   if (cmd.out) {
     // 按扩展名决定输出格式：.html 出可视化报告，其余出 JSON。

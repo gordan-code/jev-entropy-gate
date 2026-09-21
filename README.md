@@ -113,6 +113,15 @@ node --experimental-strip-types src/index.ts scan \
   --rules rules.yaml --dir /path/to/repo --out report.json
 ```
 
+加 `--cache <file>` 开启增量扫描：内容没变的文件直接复用上次判定，不重新问 Jev，省调用。规则或阈值变了，缓存会自动失效，全部重判。
+
+```bash
+node --experimental-strip-types src/index.ts scan \
+  --rules rules.yaml --dir /path/to/repo --cache .jev-cache.json
+```
+
+第二次跑同一个仓库时，输出末尾会多一行「缓存：复用 N 处，重判 M 处」。
+
 ### apply
 
 对 auto 点执行改写。先跑一遍 scan，再把判为 auto 的点按 `replace` 字段替换。默认只预览，加 `--write` 才真正写回。
@@ -186,6 +195,7 @@ src/
 ├── classify.ts       候选点 → Jev 判定 + 分档合成
 ├── entropy.ts        熵计算
 ├── apply.ts          对 auto 点做替换
+├── cache.ts          增量扫描缓存
 ├── matcher/          匹配器抽象层（regex + ast-grep）
 ├── jev/              Jev HTTP 客户端
 ├── calibration/      阈值自校准（record + calibrate）
@@ -195,7 +205,7 @@ src/
 
 ## Roadmap
 
-- [ ] 增量扫描缓存（只重判上次变过的点）
+暂无待办项。
 
 ## License
 

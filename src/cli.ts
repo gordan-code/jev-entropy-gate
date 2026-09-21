@@ -1,5 +1,12 @@
 export type Command =
-  | { kind: "scan"; rules: string; dir: string; out?: string; concurrency?: number }
+  | {
+      kind: "scan";
+      rules: string;
+      dir: string;
+      out?: string;
+      concurrency?: number;
+      cache?: string;
+    }
   | {
       kind: "apply";
       rules: string;
@@ -27,11 +34,12 @@ const HELP = `jev-entropy-gate
   calibrate  从反馈记录里重新拟合最优阈值
 
 scan 用法:
-  jev-entropy-gate scan --rules <rule.yaml> --dir <dir> [--out <file>] [--concurrency N]
+  jev-entropy-gate scan --rules <rule.yaml> --dir <dir> [--out <file>] [--concurrency N] [--cache <file>]
     --rules <path>       规则文件（YAML）
     --dir <path>         要扫描的仓库目录
     --out <path>         将结构化 JSON 报告写到该文件（可选）
     --concurrency <n>    并发调用 Jev 的数量（默认 8）
+    --cache <path>       缓存文件，开启增量扫描（内容没变的文件不重新问 Jev）
 
 apply 用法:
   jev-entropy-gate apply --rules <rule.yaml> --dir <dir> [--write] [--concurrency N]
@@ -78,12 +86,13 @@ function parseScan(args: string[]): Command {
   const dir = get(args, "--dir");
   const out = get(args, "--out");
   const concurrencyRaw = get(args, "--concurrency");
+  const cache = get(args, "--cache");
 
   if (!rules) throw new Error("缺少 --rules <rule.yaml>");
   if (!dir) throw new Error("缺少 --dir <path>");
 
   const concurrency = parseConcurrency(concurrencyRaw);
-  return { kind: "scan", rules, dir, out, concurrency };
+  return { kind: "scan", rules, dir, out, concurrency, cache };
 }
 
 function parseApply(args: string[]): Command {

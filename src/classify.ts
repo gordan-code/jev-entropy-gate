@@ -43,7 +43,7 @@ export function buildQuestions() {
 export async function classifyCandidate(
   candidate: Candidate,
   rule: Rule,
-  client: JevClient
+  client: Pick<JevClient, "evaluate">
 ): Promise<SiteResult> {
   const response = await client.evaluate(buildState(candidate, rule), buildQuestions());
   return toSiteResult(candidate, response);
