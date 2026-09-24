@@ -83,7 +83,7 @@ Expected: one commit containing package metadata, tarball validation, and tests.
 **Files:** `.github/workflows/ci.yml`
 
 - [ ] **Step 1: Create a workflow with the six fixed runner labels.** Matrix labels: `windows-2025`, `windows-11-arm`, `ubuntu-24.04`, `ubuntu-24.04-arm`, `macos-15-intel`, and `macos-14`; run on pull requests and pushes. Use Node.js `22.18.0` to validate the minimum supported runtime.
-- [ ] **Step 2: Configure each matrix job to install, test, build, and smoke-test.** Steps: checkout, setup Node 22.18.0 with npm cache, `npm ci`, `npm run typecheck`, `npm test`, `npm run build`, package manifest allowlist validation, and `npm run package:smoke`. The smoke script itself must validate the actual tarball file list against the allowlist before install. Ensure CI has no npm token, `npm publish`, release action, or publish workflow.
+- [ ] **Step 2: Configure each matrix job to install, test, build, and smoke-test.** Steps: checkout, setup Node 22.18.0 with npm cache, `npm ci`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run package:smoke`. The smoke script must validate both `npm pack --dry-run` JSON and the actual tarball file list against the exact allowlist before install. Ensure CI has no npm token, `npm publish`, release action, or publish workflow.
 - [ ] **Step 3: Validate the workflow and rerun all local checks.**
 
 Run: `npm ci; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm test; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run package:smoke`
