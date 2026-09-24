@@ -48,6 +48,10 @@ function runCli(...argv: string[]) {
   });
 }
 
+function normalizeLicenseText(text: string) {
+  return text.replace(/\r\n?/g, "\n").trim();
+}
+
 test("npm test builds the distribution before running subprocess checks", () => {
   assert.equal(packageJson.scripts?.pretest, "npm run build");
   assert.match(packageJson.scripts?.test ?? "", /^node --test /);
@@ -109,9 +113,15 @@ test("package metadata is publishable and keeps native runtime dependency exact"
   assert.match(notices, /MIT License/i);
   assert.match(notices, /Colin McDonnell/i);
   const yamlLicense = readFileSync(join(packageRoot, "node_modules", "yaml", "LICENSE"), "utf8").trim();
-  assert.ok(notices.includes(yamlLicense), "THIRD_PARTY_NOTICES.md must contain yaml's complete ISC notice");
+  assert.ok(
+    normalizeLicenseText(notices).includes(normalizeLicenseText(yamlLicense)),
+    "THIRD_PARTY_NOTICES.md must contain yaml's complete ISC notice"
+  );
   const zodLicense = readFileSync(join(packageRoot, "node_modules", "zod", "LICENSE"), "utf8").trim();
-  assert.ok(notices.includes(zodLicense), "THIRD_PARTY_NOTICES.md must contain zod's complete MIT notice");
+  assert.ok(
+    normalizeLicenseText(notices).includes(normalizeLicenseText(zodLicense)),
+    "THIRD_PARTY_NOTICES.md must contain zod's complete MIT notice"
+  );
 });
 
 test("package files field is an explicit publish allowlist", () => {
