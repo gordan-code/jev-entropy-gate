@@ -31,6 +31,15 @@ const packageRoot = join(testDir, "..");
 const packageValidatorPath = join(packageRoot, "scripts", "assert-package-files.mjs");
 const thirdPartyNoticesPath = join(packageRoot, "THIRD_PARTY_NOTICES.md");
 const packageLock = readFileSync(join(packageRoot, "package-lock.json"), "utf8");
+const expectedPackagePaths = [
+  "package.json",
+  "bin/jevg.mjs",
+  "dist/index.js",
+  "README.md",
+  "README.zh-CN.md",
+  "LICENSE",
+  "THIRD_PARTY_NOTICES.md"
+];
 
 function runCli(...argv: string[]) {
   return spawnSync(process.execPath, [wrapperPath, ...argv], {
@@ -99,6 +108,10 @@ test("package metadata is publishable and keeps native runtime dependency exact"
   assert.match(notices, /zod\s+4\.6\.5/i);
   assert.match(notices, /MIT License/i);
   assert.match(notices, /Colin McDonnell/i);
+  const yamlLicense = readFileSync(join(packageRoot, "node_modules", "yaml", "LICENSE"), "utf8").trim();
+  assert.ok(notices.includes(yamlLicense), "THIRD_PARTY_NOTICES.md must contain yaml's complete ISC notice");
+  const zodLicense = readFileSync(join(packageRoot, "node_modules", "zod", "LICENSE"), "utf8").trim();
+  assert.ok(notices.includes(zodLicense), "THIRD_PARTY_NOTICES.md must contain zod's complete MIT notice");
 });
 
 test("package files field is an explicit publish allowlist", () => {
@@ -122,20 +135,16 @@ function runPackageValidator(input: unknown) {
   });
 }
 
-test("package validator accepts only the intended npm entries", () => {
-  const validListing = [
+function packageListing(extraPaths: string[] = []) {
+  return [
     {
-      files: [
-        { path: "package.json" },
-        { path: "bin/jevg.mjs" },
-        { path: "dist/index.js" },
-        { path: "README.md" },
-        { path: "README.zh-CN.md" },
-        { path: "LICENSE" },
-        { path: "THIRD_PARTY_NOTICES.md" }
-      ]
+      files: [...expectedPackagePaths, ...extraPaths].map((path) => ({ path }))
     }
   ];
+}
+
+test("package validator accepts only the intended npm entries", () => {
+  const validListing = packageListing();
   const accepted = runPackageValidator(validListing);
 
   assert.equal(accepted.error, undefined, accepted.error?.message);
@@ -162,40 +171,16 @@ test("package validator accepts only the intended npm entries", () => {
     "dist//index.js"
   ];
   for (const path of deniedPaths) {
-    const rejected = runPackageValidator([
-      { files: [{ path: "package.json" }, { path }] }
-    ]);
+    const rejected = runPackageValidator(packageListing([path]));
     assert.notEqual(rejected.status, 0, `validator accepted ${path}`);
   }
 
-  const missingNotice = runPackageValidator([
-    {
-      files: [
-        { path: "package.json" },
-        { path: "bin/jevg.mjs" },
-        { path: "dist/index.js" },
-        { path: "README.md" },
-        { path: "README.zh-CN.md" },
-        { path: "LICENSE" }
-      ]
-    }
-  ]);
+  const missingNotice = runPackageValidator(packageListing().map((record) => ({
+    files: record.files.slice(0, -1)
+  })));
   assert.notEqual(missingNotice.status, 0, "validator accepted an incomplete manifest");
 
-  const duplicateEntry = runPackageValidator([
-    {
-      files: [
-        { path: "package.json" },
-        { path: "bin/jevg.mjs" },
-        { path: "dist/index.js" },
-        { path: "README.md" },
-        { path: "README.zh-CN.md" },
-        { path: "LICENSE" },
-        { path: "THIRD_PARTY_NOTICES.md" },
-        { path: "LICENSE" }
-      ]
-    }
-  ]);
+  const duplicateEntry = runPackageValidator(packageListing(["LICENSE"]));
   assert.notEqual(duplicateEntry.status, 0, "validator accepted a duplicate manifest entry");
 });
 
