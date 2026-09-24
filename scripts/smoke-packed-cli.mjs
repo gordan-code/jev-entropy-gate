@@ -93,6 +93,9 @@ function cleanupTemporaryDirectory(label, path) {
 try {
   runNpm(["run", "build"], { stdio: "inherit" });
 
+  const dryRun = runNpm(["pack", "--dry-run", "--ignore-scripts", "--json"]);
+  assertPackageListing(dryRun.stdout);
+
   packDirectory = mkdtempSync(join(tmpdir(), "jev-entropy-gate-pack-"));
   const packed = runNpm([
     "pack",
