@@ -21,6 +21,7 @@
 - Add `scripts/assert-package-files.mjs`: validate `npm pack --dry-run --ignore-scripts --json` file paths against the allowed package contents and reject secrets, source, tests, reports, and source maps.
 - Add `scripts/smoke-packed-cli.mjs`: build and pack, assert the actual tarball file list, install the tarball using npm global mode into an isolated temporary prefix, resolve `jevg` and prove its path is under that prefix, then run `jevg --help` with the isolated prefix prepended to PATH.
 - Add `LICENSE`: MIT license text consistent with `package.json` license metadata.
+- Add `THIRD_PARTY_NOTICES.md`: include bundled `yaml` ISC and `zod` MIT license texts because these dependencies are embedded into the published bundle.
 - Add `.github/workflows/ci.yml`: pull-request and push validation across the six fixed runner labels and Node 22.18.0; no npm publishing credentials or publish step.
 - Keep `helloagents/`, `.env`, `.env.example`, source, tests, reports, and development configuration out of the npm tarball. Do not add `helloagents/` to `.gitignore`.
 
@@ -52,13 +53,13 @@ Expected: one commit containing only build-entry implementation and its test.
 
 **Files:** `package.json`, `package-lock.json`, `LICENSE`, `scripts/assert-package-files.mjs`, `scripts/smoke-packed-cli.mjs`, `test/cli-packaging.test.ts`
 
-- [ ] **Step 1: Add failing tests for package metadata and denylisted content.** Verify metadata is publishable (`private` absent/false, `type: module`, `engines.node >=22.18.0`, `@ast-grep/napi` exactly `0.45.3`), expected entries are allowed, and `.env`, `.env.example`, `helloagents/`, source, tests, reports, configs, and source maps are rejected.
+- [ ] **Step 1: Add failing tests for package metadata and denylisted content.** Verify metadata is publishable (`private` absent/false, `type: module`, `engines.node >=22.18.0`, `@ast-grep/napi` exactly `0.45.3`), exact expected entries are allowed, and `.env`, `.env.example`, `helloagents/`, source, tests, reports, configs, source maps, nested secrets, and arbitrary files under `bin/` or `dist/` are rejected.
 - [ ] **Step 2: Run the focused tests and confirm the current package configuration fails.**
 
 Run: `node --test --experimental-strip-types --experimental-test-isolation=none test/cli-packaging.test.ts`
 Expected: FAIL on current `private: true`, incomplete npm files metadata, and missing package-validation behavior.
 
-- [ ] **Step 3: Implement package metadata, license, docs, and validation scripts.** Remove `private: true`; retain package name and version `jev-entropy-gate@0.1.0`; set Node floor to `>=22.18.0`; add repository metadata and explicit `files` whitelist for `bin/`, `dist/`, `README.md`, `README.zh-CN.md`, and `LICENSE`; add `prepack` build. Bundle `yaml`/`zod` and move them to `devDependencies`; set only `@ast-grep/napi` as a runtime dependency at exact version `0.45.3`. Regenerate lockfile metadata against `https://registry.npmjs.org` so CI does not rely on a third-party mirror. Add MIT text to `LICENSE` and document installation/use of the global CLI in both READMEs. Validate dry-run file paths from npm’s JSON output against the whitelist; do not emit source maps. Ensure the tarball smoke script cleans up its isolated temporary prefix even on failure.
+- [ ] **Step 3: Implement package metadata, licenses, docs, and validation scripts.** Remove `private: true`; retain package name and version `jev-entropy-gate@0.1.0`; set Node floor to `>=22.18.0`; add repository metadata and explicit `files` whitelist for `bin/`, `dist/`, both READMEs, `LICENSE`, and `THIRD_PARTY_NOTICES.md`; add `prepack` build. Bundle `yaml`/`zod` and move them to `devDependencies`; set only `@ast-grep/napi` as a runtime dependency at exact version `0.45.3`. Regenerate lockfile metadata against `https://registry.npmjs.org` so CI does not rely on a third-party mirror. Add MIT text to `LICENSE`, bundled dependencies' ISC/MIT texts to `THIRD_PARTY_NOTICES.md`, and document installation/use of the global CLI in both READMEs. Validate actual tarball file paths against an exact file manifest (not merely directory prefixes) and do not emit source maps. Ensure the tarball smoke script packs into a dedicated temporary directory, validates tarball filename stays within it, avoids shell-interpolating Windows paths, and independently cleans both temporary prefix and pack directory without masking original errors.
 - [ ] **Step 4: Verify expected failure cases and run package validation.**
 
 Run: `node --test --experimental-strip-types --experimental-test-isolation=none test/cli-packaging.test.ts`
@@ -74,7 +75,7 @@ Expected: command succeeds from the installed tarball rather than the workspace 
 
 - [ ] **Step 6: Commit package metadata and tarball validation.**
 
-Run: `git add package.json package-lock.json LICENSE README.md README.zh-CN.md scripts test/cli-packaging.test.ts; git commit -m "完善npm包分发校验"`
+Run: `git add package.json package-lock.json LICENSE THIRD_PARTY_NOTICES.md README.md README.zh-CN.md scripts test/cli-packaging.test.ts; git commit -m "完善npm包分发校验"`
 Expected: one commit containing package metadata, tarball validation, and tests.
 
 ## Task 3: Add six-platform CI validation

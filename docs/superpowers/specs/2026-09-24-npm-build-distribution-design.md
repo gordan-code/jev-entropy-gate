@@ -1,6 +1,6 @@
 # npm 构建与公开分发设计
 
-**状态：** 已获用户确认，待文档审阅  
+**状态：** 已获用户确认并审阅
 **日期：** 2026-09-24
 
 ## 目标
@@ -28,7 +28,7 @@
 
 - 保留包名 `jev-entropy-gate`，首发版本为 `0.1.0`；发布前再检查名称可用性。当前 npm registry 查询返回 404，但不视为预留保证。
 - 移除 `private: true`，补齐公开分发所需元数据（仓库、license、engines 等）；不自动发布。
-- `bin` 指向 `bin/jevg.mjs`；包文件采用显式白名单，仅包含 `package.json`、`bin/`、`dist/`、中英文 README 与 LICENSE；不生成或发布 source map。
+- `bin` 指向 `bin/jevg.mjs`；包文件采用显式白名单，仅包含 `package.json`、`bin/jevg.mjs`、`dist/index.js`、中英文 README、项目 LICENSE 与第三方许可证声明；不生成或发布 source map。因 `yaml`/`zod` 被合并进 bundle，第三方许可证声明须覆盖其许可证文本。
 - 明确不包含 `.env`、`.env.example`、`helloagents/`、源码、测试、报告或开发配置。`@ast-grep/napi` 是唯一必需的运行时依赖；`yaml`/`zod` 随 bundle 提供。
 - 配置 `prepack` 构建产物；使用 `npm pack --dry-run` 审核包清单，并由自动化断言 tarball 文件路径均符合白名单。npm 的 `files` 字段用于限定发布文件，`prepack` 在 `npm pack`/`npm publish` 前运行。参见 [npm package.json](https://docs.npmjs.com/cli/v10/configuring-npm/package-json/)、[npm lifecycle scripts](https://docs.npmjs.com/cli/v8/using-npm/scripts/)、[npm pack](https://docs.npmjs.com/cli/v10/commands/npm-pack/)。
 
@@ -52,7 +52,7 @@
 1. `npm run build` 在六个目标环境中通过，产物中没有指向源码 `.ts` 的运行入口；`@ast-grep/napi` 保留为外置运行时模块。
 2. `jevg` 命令从全局安装后的 tarball 启动 `dist/index.js`；在六个目标环境中执行 `jevg --help` 成功并加载原生模块。
 3. 六平台矩阵的 typecheck、测试、build、tarball 安装与 smoke test 全通过。
-4. `npm pack --dry-run` 与实包清单通过自动白名单断言；`.env`、`.env.example`、`helloagents/`、源码、测试、报告、source maps 与开发配置均未包含。
+4. `npm pack --dry-run` 与实包清单通过精确文件清单断言；只包含许可声明、README、CLI wrapper 和构建入口相关文件；`.env`、`.env.example`、`helloagents/`、源码、测试、报告、source maps 与开发配置均未包含。
 5. 首发配置为 `0.1.0`，手动发布步骤可在 CI 通过后执行；设计/实现阶段不发布。
 
 ## 不在范围内
