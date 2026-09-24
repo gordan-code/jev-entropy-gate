@@ -8,6 +8,7 @@ import { parse } from "yaml";
 const testDir = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(testDir, "..");
 const workflowPath = join(packageRoot, ".github", "workflows", "ci.yml");
+const dependabotPath = join(packageRoot, ".github", "dependabot.yml");
 const smokeScriptPath = join(packageRoot, "scripts", "smoke-packed-cli.mjs");
 
 test("CI runs only on push and pull_request with read-only contents permission", () => {
@@ -26,6 +27,7 @@ test("CI covers the six supported runner labels at the minimum Node version", ()
     jobs?: Record<string, {
       strategy?: { "fail-fast"?: boolean; matrix?: { os?: string[] } };
       "runs-on"?: string;
+      "timeout-minutes"?: number;
       steps?: Array<{ uses?: string; with?: Record<string, unknown>; run?: string }>;
     }>;
   };
@@ -35,6 +37,7 @@ test("CI covers the six supported runner labels at the minimum Node version", ()
   const [job] = jobs;
   assert.ok(job);
   assert.equal(job["runs-on"], "${{ matrix.os }}");
+  assert.equal(job["timeout-minutes"], 30);
   assert.equal(job.strategy?.["fail-fast"], false);
   assert.deepEqual(job.strategy?.matrix?.os, [
     "windows-2025",
@@ -51,6 +54,72 @@ test("CI covers the six supported runner labels at the minimum Node version", ()
   assert.ok(setupNode, "CI must configure Node.js");
   assert.equal(setupNode.with?.["node-version"], "22.18.0");
   assert.equal(setupNode.with?.cache, "npm");
+});
+
+test("CI pins every Action to the verified release SHA and disables checkout credentials", () => {
+  const workflowText = readFileSync(workflowPath, "utf8");
+  const actionReferences = [...workflowText.matchAll(/^\s+uses:\s*(\S+)(?:\s+#\s*(v\d+\.\d+\.\d+))?\s*$/gmi)]
+    .map((match) => ({ reference: match[1], version: match[2] }));
+
+  assert.deepEqual(actionReferences, [
+    {
+      reference: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+      version: "v7.0.1"
+    },
+    {
+      reference: "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+      version: "v7.0.0"
+    }
+  ]);
+  for (const { reference } of actionReferences) {
+    assert.match(reference ?? "", /^[^@]+@[0-9a-f]{40}$/);
+  }
+
+  const workflow = parse(workflowText) as {
+    jobs?: Record<string, { steps?: Array<{ uses?: string; with?: Record<string, unknown> }> }>;
+  };
+  const checkout = Object.values(workflow.jobs ?? {})
+    .flatMap((job) => job.steps ?? [])
+    .find((step) => step.uses?.startsWith("actions/checkout@"));
+  assert.ok(checkout, "CI must check out the repository");
+  assert.equal(checkout.with?.["persist-credentials"], false);
+});
+
+test("Dependabot checks pinned GitHub Actions weekly", () => {
+  const dependabot = parse(readFileSync(dependabotPath, "utf8")) as {
+    version?: number;
+    updates?: Array<{
+      "package-ecosystem"?: string;
+      directory?: string;
+      schedule?: { interval?: string };
+    }>;
+  };
+
+  assert.equal(dependabot.version, 2);
+  assert.deepEqual(dependabot.updates, [{
+    "package-ecosystem": "github-actions",
+    directory: "/",
+    schedule: { interval: "weekly" }
+  }]);
+});
+
+test("CI steps stay in install, check, build, and smoke order", () => {
+  const workflow = parse(readFileSync(workflowPath, "utf8")) as {
+    jobs?: Record<string, { steps?: Array<{ uses?: string; run?: string }> }>;
+  };
+  const steps = Object.values(workflow.jobs ?? {})
+    .flatMap((job) => job.steps ?? [])
+    .map((step) => step.uses ?? step.run ?? "");
+
+  assert.deepEqual(steps, [
+    "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+    "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+    "npm ci",
+    "npm run typecheck",
+    "npm test",
+    "npm run build",
+    "npm run package:smoke"
+  ]);
 });
 
 test("CI installs, checks, builds, and package-smoke-tests without publishing", () => {
