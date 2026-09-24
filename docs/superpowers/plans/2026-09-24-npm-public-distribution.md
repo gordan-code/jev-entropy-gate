@@ -99,10 +99,12 @@ Expected: workflow is committed separately from package implementation.
 
 ## Final Verification
 
-- [ ] Run `npm run typecheck`, `npm test`, `npm run build`, and `npm run package:smoke` successfully.
-- [ ] Confirm the package dry-run JSON has only allowlisted entries and excludes `.env`, `.env.example`, `helloagents/`, TypeScript sources, tests, reports, developer configs, and source maps.
-- [ ] Confirm no source entry remains in `bin/jevg.mjs`, `npm publish` was not run, and no npm publish token is configured in CI.
-- [ ] Review the complete branch diff and request a final code review before integration.
+- [x] Run `npm run typecheck`, `npm test`, `npm run build`, and `npm run package:smoke` successfully.
+- [x] Confirm the package dry-run JSON has only allowlisted entries and excludes `.env`, `.env.example`, `helloagents/`, TypeScript sources, tests, reports, developer configs, and source maps.
+- [x] Confirm no source entry remains in `bin/jevg.mjs`, `npm publish` was not run, and no npm publish token is configured in CI.
+- [x] Review the complete branch diff and request a final code review before integration.
+
+> Note: GitHub's remote six-platform CI has not run yet; the workflow must be pushed through the user's chosen integration path before that matrix can be confirmed.
 
 ## Release Boundary
 
