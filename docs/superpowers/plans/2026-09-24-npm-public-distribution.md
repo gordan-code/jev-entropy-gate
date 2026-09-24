@@ -28,17 +28,17 @@
 
 **Files:** `package.json`, `bin/jevg.mjs`, `test/cli-packaging.test.ts`
 
-- [ ] **Step 1: Add a failing distribution-entry test.** Add a test asserting the executable wrapper imports `{ main }` from `../dist/index.js`, calls it with `process.argv.slice(2)`, maps its result to `process.exitCode`, and does not reference `src/index.ts` or `--experimental-strip-types`.
+- [ ] **Step 1: Add failing distribution-entry tests.** Add a structural check asserting the executable wrapper imports `{ main }` from `../dist/index.js`, calls it with `process.argv.slice(2)`, maps its result to `process.exitCode`, and does not reference `src/index.ts` or `--experimental-strip-types`. Add subprocess tests that run `node bin/jevg.mjs --help` and verify help output/exit code 0, then an invalid argument and verify exit code 1/error output. Configure `npm test` to build first so `dist/index.js` exists when integration tests run.
 - [ ] **Step 2: Run the focused test and verify it fails on the current wrapper.**
 
-Run: `node --test --experimental-strip-types --experimental-test-isolation=none test/cli-packaging.test.ts`
-Expected: FAIL because the existing wrapper still starts `src/index.ts`.
+Run: `npm test`
+Expected: FAIL because the structural test finds the old source wrapper and/or built CLI invocation fails.
 
 - [ ] **Step 3: Update the build command and wrapper.** Set esbuild `--external:@ast-grep/napi` and target Node 22.18; preserve ESM output and `"type": "module"`, and ensure the bundle exports `main`. Change `bin/jevg.mjs` to keep the shebang, import `{ main }` from `../dist/index.js`, call `main(process.argv.slice(2))`, and set `process.exitCode` from the result. Preserve the source direct-entry guard; when wrapper imports the bundle, the guard must not execute `main` itself, so the wrapper call executes the CLI exactly once. Do not alter scan/apply behavior.
 - [ ] **Step 4: Run focused tests, typecheck, build, and CLI smoke.**
 
-Run: `node --test --experimental-strip-types --experimental-test-isolation=none test/cli-packaging.test.ts`
-Expected: PASS.
+Run: `npm test`
+Expected: PASS, including actual help and invalid-argument subprocess behavior against a fresh build.
 
 Run: `npm run typecheck; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; node bin/jevg.mjs --help`
 Expected: typecheck/build succeed and help text is printed, with native ast-grep module resolvable.
