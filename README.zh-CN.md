@@ -38,13 +38,25 @@
 
 ## 安装和快速开始
 
-需要 Node.js 22.18 以上（用 Node 原生 TypeScript 支持直接跑源码，不依赖 tsx）。
+需要 Node.js 22.18.0 以上（公开发布的 CLI 运行已构建的 JavaScript 产物）。
 
-两种用法：装成全局命令 `jevg`，或者直接跑源码脚本。
+可以从 npm 安装全局命令 `jevg`，开发时也可以直接跑源码脚本。
 
 ### 装成命令行（推荐）
 
-在项目目录里执行，把 `jevg` 命令装到全局：
+从 npm 安装公开发布的包：
+
+```bash
+npm install --global jev-entropy-gate
+```
+
+先确认命令可用，再从任意目录执行：
+
+```bash
+jevg --help
+```
+
+如果是在源码仓库中本地开发，可以安装当前目录：
 
 ```bash
 npm install -g .

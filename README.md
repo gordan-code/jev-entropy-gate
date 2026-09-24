@@ -38,13 +38,25 @@ Some boundaries first:
 
 ## Install and quick start
 
-Requires Node.js 22.18+ (uses Node's native TypeScript support, no tsx).
+Requires Node.js 22.18.0+ (the published CLI runs its bundled JavaScript build).
 
-Two ways to run: install as the global `jevg` command, or run the source directly.
+Install the published package as the global `jevg` command, or run the source directly while developing.
 
 ### As a command (recommended)
 
-From the project directory, install the `jevg` command globally:
+Install the latest published package from npm:
+
+```bash
+npm install --global jev-entropy-gate
+```
+
+Check the installed command, then use it from any directory:
+
+```bash
+jevg --help
+```
+
+For local development from a checkout, install the package directory instead:
 
 ```bash
 npm install -g .

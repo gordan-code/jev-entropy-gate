@@ -1,14 +1,24 @@
 {
   "name": "jev-entropy-gate",
   "version": "0.1.0",
-  "private": true,
   "description": "Use Jev's calibrated probability entropy to decide which migration/refactor sites can be safely automated, and which need a human.",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gordan-code/jev-entropy-gate.git"
+  },
   "bin": {
     "jevg": "bin/jevg.mjs"
   },
+  "files": [
+    "bin/",
+    "dist/",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE"
+  ],
   "engines": {
-    "node": ">=22.18"
+    "node": ">=22.18.0"
   },
   "scripts": {
     "scan": "node --experimental-strip-types src/index.ts scan",
@@ -18,17 +28,19 @@
     "pretest": "npm run build",
     "test": "node --test --experimental-strip-types --experimental-test-isolation=none \"test/*.test.ts\"",
     "typecheck": "tsc --noEmit",
-    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22.18 --external:@ast-grep/napi --outfile=dist/index.js --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\""
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22.18 --external:@ast-grep/napi --outfile=dist/index.js --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+    "prepack": "npm run build",
+    "package:smoke": "node scripts/smoke-packed-cli.mjs"
   },
   "dependencies": {
-    "@ast-grep/napi": "^0.45.3",
-    "yaml": "2.8.2",
-    "zod": "4.6.5"
+    "@ast-grep/napi": "0.45.3"
   },
   "devDependencies": {
     "@types/node": "22.20.3",
     "esbuild": "0.28.2",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "yaml": "2.8.2",
+    "zod": "4.6.5"
   },
   "license": "MIT"
 }
