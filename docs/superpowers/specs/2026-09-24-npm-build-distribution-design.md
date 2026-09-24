@@ -34,7 +34,7 @@
 
 ## CI 与发布流程
 
-- 在 GitHub Actions 的 PR 与 push 验证矩阵中覆盖 6 个原生组合：Windows/Linux/macOS × x64/arm64。使用固定 runner labels：`windows-2025`、`windows-11-arm`、`ubuntu-24.04`、`ubuntu-24.04-arm`、`macos-15-intel`、`macos-14`，避免 `*-latest` 迁移造成不可预期变化。官方 runner 文档当前列有这些平台/架构标签：[runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)。
+- 在 GitHub Actions 的 PR 与 push 验证矩阵中覆盖 6 个原生组合：Windows/Linux/macOS × x64/arm64。使用固定 runner labels：`windows-2025`、`windows-11-arm`、`ubuntu-24.04`、`ubuntu-24.04-arm`、`macos-15-intel`、`macos-14`，避免 `*-latest` 迁移造成不可预期变化。Actions 依赖按完整 commit SHA 固定，并由 Dependabot 定期提出更新；checkout 不保留 token 凭据。官方 runner 文档当前列有这些平台/架构标签：[runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)。
 - CI 使用 Node.js `22.18.0`（最低支持版本）执行矩阵；每个任务执行 `npm ci`、`npm run typecheck`、`npm test`、`npm run build`、`npm pack`。将实际 tarball 安装到隔离临时前缀，例如 `npm install --global --prefix <tmp-prefix> <tarball>`，修改 PATH 并调用该 prefix 下的 `jevg --help`（Windows 使用对应全局 shim）；测试必须确认实际执行的是安装后的包入口而非 workspace 文件。CLI 入口加载时须能解析 `@ast-grep/napi` 原生模块。
 - CI 只构建和验证，不持有 npm token，不执行发布。所有矩阵通过后，由用户审核 tarball 内容、版本、包名和 npm 账户，再手动发布；首次公开发布需再次明确授权。
 - 公开 npm 包及包名/版本不可复用风险，以 npm 官方文档为准：[package visibility](https://docs.npmjs.com/about-public-packages/)、[publishing](https://docs.npmjs.com/cli/v10/commands/npm-publish/)。

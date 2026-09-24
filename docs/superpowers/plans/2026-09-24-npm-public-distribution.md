@@ -22,7 +22,8 @@
 - Add `scripts/smoke-packed-cli.mjs`: build and pack, assert the actual tarball file list, install the tarball using npm global mode into an isolated temporary prefix, resolve `jevg` and prove its path is under that prefix, then run `jevg --help` with the isolated prefix prepended to PATH.
 - Add `LICENSE`: MIT license text consistent with `package.json` license metadata.
 - Add `THIRD_PARTY_NOTICES.md`: include bundled `yaml` ISC and `zod` MIT license texts because these dependencies are embedded into the published bundle.
-- Add `.github/workflows/ci.yml`: pull-request and push validation across the six fixed runner labels and Node 22.18.0; no npm publishing credentials or publish step.
+- Add `.github/workflows/ci.yml`: pull-request and push validation across the six fixed runner labels and Node 22.18.0; pin third-party Actions to full commit SHAs, disable checkout credential persistence, and include no npm publishing credentials or publish step.
+- Add `.github/dependabot.yml`: weekly GitHub Actions dependency updates so pinned Action SHAs receive reviewed updates.
 - Keep `helloagents/`, `.env`, `.env.example`, source, tests, reports, and development configuration out of the npm tarball. Do not add `helloagents/` to `.gitignore`.
 
 ## Task 1: Run the CLI from its ESM build
@@ -82,7 +83,7 @@ Expected: one commit containing package metadata, tarball validation, and tests.
 
 **Files:** `.github/workflows/ci.yml`
 
-- [x] **Step 1: Create a workflow with the six fixed runner labels.** Matrix labels: `windows-2025`, `windows-11-arm`, `ubuntu-24.04`, `ubuntu-24.04-arm`, `macos-15-intel`, and `macos-14`; run on pull requests and pushes. Use Node.js `22.18.0` to validate the minimum supported runtime.
+- [x] **Step 1: Create a workflow with the six fixed runner labels.** Matrix labels: `windows-2025`, `windows-11-arm`, `ubuntu-24.04`, `ubuntu-24.04-arm`, `macos-15-intel`, and `macos-14`; run on pull requests and pushes. Use Node.js `22.18.0` to validate the minimum supported runtime. Pin all actions to verified full commit SHAs; use `persist-credentials: false` for checkout and weekly Dependabot updates.
 - [x] **Step 2: Configure each matrix job to install, test, build, and smoke-test.** Steps: checkout, setup Node 22.18.0 with npm cache, `npm ci`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run package:smoke`. The smoke script must validate both `npm pack --dry-run` JSON and the actual tarball file list against the exact allowlist before install. Ensure CI has no npm token, `npm publish`, release action, or publish workflow.
 - [x] **Step 3: Validate the workflow and rerun all local checks.**
 
