@@ -15,7 +15,8 @@
     "apply": "node --experimental-strip-types src/index.ts apply",
     "record": "node --experimental-strip-types src/index.ts record",
     "calibrate": "node --experimental-strip-types src/index.ts calibrate",
-    "test": "npm run build && node --test --experimental-strip-types --experimental-test-isolation=none \"test/*.test.ts\"",
+    "pretest": "npm run build",
+    "test": "node --test --experimental-strip-types --experimental-test-isolation=none \"test/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22.18 --external:@ast-grep/napi --outfile=dist/index.js --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\""
   },

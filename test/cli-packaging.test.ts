@@ -9,16 +9,19 @@ const testDir = dirname(fileURLToPath(import.meta.url));
 const wrapperPath = join(testDir, "..", "bin", "jevg.mjs");
 const packageJson = JSON.parse(
   readFileSync(join(testDir, "..", "package.json"), "utf8")
-) as { scripts?: { test?: string } };
+) as { scripts?: { pretest?: string; test?: string } };
 
 function runCli(...argv: string[]) {
   return spawnSync(process.execPath, [wrapperPath, ...argv], {
-    encoding: "utf8"
+    encoding: "utf8",
+    timeout: 10_000
   });
 }
 
 test("npm test builds the distribution before running subprocess checks", () => {
-  assert.match(packageJson.scripts?.test ?? "", /^npm run build &&/);
+  assert.equal(packageJson.scripts?.pretest, "npm run build");
+  assert.match(packageJson.scripts?.test ?? "", /^node --test /);
+  assert.doesNotMatch(packageJson.scripts?.test ?? "", /&&/);
 });
 
 test("CLI wrapper imports the built ESM entry and forwards its exit code", () => {
