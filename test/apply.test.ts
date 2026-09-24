@@ -1,18 +1,39 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { planRewrites, applyToContent, type Rewrite } from "../src/apply.ts";
+import { validateRewrites } from "../src/apply/validate.ts";
+import { RegexMatcher } from "../src/matcher/regex.ts";
+import { AstGrepMatcher } from "../src/matcher/astgrep.ts";
 import type { SiteResult } from "../src/types.ts";
 import { ruleSchema } from "../src/rules.ts";
 
 /** 造一个 SiteResult，band 可以指定，方便测"只挑 auto"的逻辑。 */
-function site(file: string, offset: number, matched: string, band: SiteResult["band"]): SiteResult {
+function site(
+  file: string,
+  offset: number,
+  matched: string,
+  band: SiteResult["band"],
+  sourceHash?: string
+): SiteResult {
   return {
-    candidate: { file, line: 1, column: 1, offset, snippet: "", matched },
+    candidate: { file, line: 1, column: 1, offset, snippet: "", matched, sourceHash },
     probabilities: { deterministic: 0.9, judgment: 0.05, manual: 0.05 },
     choice: "deterministic",
     entropy: 0.3,
     automateConfidence: 0.8,
     band,
+    confidence: 0.9
+  };
+}
+
+function autoSite(candidate: SiteResult["candidate"]): SiteResult {
+  return {
+    candidate,
+    probabilities: { deterministic: 0.9, judgment: 0.05, manual: 0.05 },
+    choice: "deterministic",
+    entropy: 0.3,
+    automateConfidence: 0.8,
+    band: "auto",
     confidence: 0.9
   };
 }
@@ -43,6 +64,48 @@ test("planRewrites 用 capture group 正确算出替换文本", () => {
   const rewrites = planRewrites(sites, rule);
   assert.equal(rewrites[0]!.after, "logger.warn(");
   assert.equal(rewrites[1]!.after, "logger.error(");
+});
+
+test("planRewrites 透传 candidate 的 sourceHash", () => {
+  const sourceHash = "a".repeat(64);
+  const rewrites = planRewrites(
+    [site("a.ts", 0, "console.warn(", "auto", sourceHash)],
+    rule
+  );
+  assert.equal(rewrites[0]!.sourceHash, sourceHash);
+});
+
+test("regex 空字符串 replace 经 matcher 和 plan 后可删除原文", () => {
+  const content = "console.log(msg)";
+  const emptyReplaceRule = ruleSchema.parse({
+    id: "remove-console",
+    pattern: "console\\.log\\(msg\\)",
+    replace: "",
+    task: "删除"
+  });
+  const candidate = new RegexMatcher().findCandidates("a.ts", content, emptyReplaceRule)[0]!;
+  const rewrites = planRewrites([autoSite(candidate)], emptyReplaceRule);
+
+  assert.equal(rewrites[0]!.after, "");
+  assert.equal(validateRewrites(content, rewrites), "");
+});
+
+test("ast-grep 空字符串 fix 经 matcher 和 plan 后可删除原文", () => {
+  const content = "console.log(msg)";
+  const emptyFixRule = ruleSchema.parse({
+    id: "remove-console",
+    engine: "ast-grep",
+    language: "typescript",
+    pattern: "console.log($ARG)",
+    fix: "",
+    task: "删除"
+  });
+  const candidate = new AstGrepMatcher().findCandidates("a.ts", content, emptyFixRule)[0]!;
+  const rewrites = planRewrites([autoSite(candidate)], emptyFixRule);
+
+  assert.equal(candidate.replacement, "");
+  assert.equal(rewrites[0]!.after, "");
+  assert.equal(validateRewrites(content, rewrites), "");
 });
 
 test("planRewrites 遇到没有 replace 字段的规则会抛错", () => {

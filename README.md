@@ -153,7 +153,7 @@ On the second run over the same repo, output ends with a line like `缓存：复
 
 ### apply
 
-Rewrite the auto sites. Runs a scan first, then replaces the auto-tier sites using the rule's `replace` field. Previews by default; add `--write` to actually write files.
+Rewrite the auto sites. Runs a scan first, then applies the rule's `replace` field for the `regex` engine or its `fix` field for the `ast-grep` engine. Previews by default; add `--write` to actually write files.
 
 ```bash
 # preview, no file writes
@@ -165,7 +165,28 @@ node --experimental-strip-types src/index.ts apply \
   --rules rules.yaml --dir /path/to/repo --write
 ```
 
-Two notes: only auto sites are touched (assisted and manual are left alone); the replacement is a pure regular expression with no model involved.
+Only auto sites are touched (assisted and manual are left alone); the replacement is a pure regular expression or AST rewrite with no model involved.
+
+#### Apply safety and failure boundaries
+
+Every `apply` run performs a read-only preflight before it prints the rewrite plan or changes a target. The preflight checks that every target is a regular file inside the selected root and that no path component is a symlink or junction. It also checks strict UTF-8 decoding, the SHA-256 snapshot captured during scanning, the original text at every rewrite range, and range conflicts. All affected files are checked as one batch: if any check fails, the whole batch is rejected and no target bytes are written. Preview and `--write` use the same preflight; preview creates no staging or backup files.
+
+With `--write`, the transaction then:
+
+1. creates an unpredictable staging file and an original-byte backup beside each target;
+2. verifies both artifact contents and their security/mode constraints;
+3. commits in a stable path order by writing through the existing target inode (`r+`) and syncing it; and
+4. rechecks the target path, file identity, and bytes before each commit.
+
+Preparation has two distinct failure boundaries. `prepareApply` may reject its read-only preflight; this is reported as a preflight failure before `executeApply`, and no target file is written. If `executeApply` reaches transaction preparation but cannot stage/backup an artifact or verify its security/mode, it returns `prepare-failed`; no target file has been written, though a partially-created artifact may be reported if its cleanup cannot be confirmed.
+
+After preparation, commit failures have two different paths. If the path/source/staged recheck fails **before the current target is opened**, that target has not been touched and only targets committed earlier are restored. The identity check immediately after opening the current target handle is another pre-write guard: if it fails, the current target is not restored; only earlier commits are rolled back and the current target's backup is retained. Only failures in `io.open()` itself, `truncate`, `write`, `sync`, `close`, or the post-write hash check are treated as potentially having changed the current target, so it is restored along with earlier commits. Recovery is verified with the original SHA-256. `commit-rolled-back` means recovery and artifact cleanup completed; recovery or cleanup residuals produce a non-zero incomplete result instead. After an otherwise successful commit, any cleanup residual is reported as `cleanup-incomplete` rather than success.
+
+Cleanup is complete only when every artifact created by this run is either already absent or still has the identity captured for this run and is successfully unlinked. An identity mismatch or unlink error leaves the path reported. Artifacts are placed in the target's directory and have names like `.<basename>.<uuid>.jev-staged` and `.<basename>.<uuid>.jev-backup`. A retained backup is recovery material, not trusted input: before manual recovery, verify its artifact identity and confirm its SHA-256 matches the expected original bytes.
+
+**Windows ACL handling:** when there are auto rewrites to write, the default CLI uses the built-in Windows ACL verifier. Before any source bytes are written, it copies and compares the target's Owner+Access security descriptor (SDDL) to each empty staging and backup artifact; after writing and closing each artifact, it verifies the descriptor again. The commit still writes through the original target inode, so the target's identity and ACL remain attached. PowerShell unavailability, ACL copy/verification failure, descriptor mismatch, or any unexpected PowerShell stdout/stderr causes a fail-closed `prepare-failed` result before the target is written. `verifyArtifactSecurity` remains an internal `ApplyIO` extension hook, not a CLI option. Read-only preview can still run, including when there are no auto rewrites.
+
+These safeguards cover errors detectable during a normal run, not a durable filesystem transaction. They do **not** promise strict cross-file atomicity after power loss or forced process termination, and they do not provide strict atomicity against concurrent external writers. The implementation rechecks paths and hashes and attempts rollback when it detects a race, but another process can still observe or make changes between checks and writes.
 
 ### record / calibrate
 

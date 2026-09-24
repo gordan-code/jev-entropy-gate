@@ -5,11 +5,11 @@ import { getJevApiKey } from "./config.ts";
 import { renderTable } from "./report/table.ts";
 import { toJson } from "./report/json.ts";
 import { toHtml } from "./report/html.ts";
-import { readFile, writeFile } from "node:fs/promises";
-import { resolve, join } from "node:path";
+import { writeFile } from "node:fs/promises";
 import { appendVerdict, loadVerdicts } from "./calibration/record.ts";
 import { calibrate } from "./calibration/calibrate.ts";
-import { planRewrites, applyToContent } from "./apply.ts";
+import { planRewrites } from "./apply.ts";
+import { executeApply, prepareApply } from "./apply/transaction.ts";
 
 export async function main(argv: string[]): Promise<number> {
   try {
@@ -64,8 +64,8 @@ async function runScan(cmd: Extract<Command, { kind: "scan" }>): Promise<number>
 async function runApply(cmd: Extract<Command, { kind: "apply" }>): Promise<number> {
   const rule = await loadRule(cmd.rules);
   // regex 引擎需要 replace 字段，ast-grep 引擎需要 fix 字段。
-  const needsReplace = rule.engine === "regex" && !rule.replace;
-  const needsFix = rule.engine === "ast-grep" && !rule.fix;
+  const needsReplace = rule.engine === "regex" && rule.replace === undefined;
+  const needsFix = rule.engine === "ast-grep" && rule.fix === undefined;
   if (needsReplace) {
     process.stderr.write(`错误：规则 "${rule.id}" 没有 replace 字段，无法执行 apply\n`);
     return 1;
@@ -90,38 +90,48 @@ async function runApply(cmd: Extract<Command, { kind: "apply" }>): Promise<numbe
     return 0;
   }
 
-  // 按文件分组，方便一次读一个文件、统一替换。
-  const byFile = new Map<string, typeof rewrites>();
-  for (const r of rewrites) {
-    const list = byFile.get(r.file) ?? [];
-    list.push(r);
-    byFile.set(r.file, list);
+  // 在任何“将改写”输出或写入前，对所有目标做一次完整、只读的预检。
+  const prepared = await prepareApply(cmd.dir, rewrites);
+  if (!prepared.ok) {
+    process.stderr.write("预检失败，未写入任何文件：\n");
+    for (const error of prepared.errors) {
+      process.stderr.write(`  ${error.file}: ${error.reason}\n`);
+    }
+    return 1;
   }
 
-  const root = resolve(cmd.dir);
-  process.stdout.write(`apply · ${rule.id}\n将改写 ${rewrites.length} 处（涉及 ${byFile.size} 个文件）：\n\n`);
+  process.stdout.write(
+    `apply · ${rule.id}\n将改写 ${rewrites.length} 处（涉及 ${prepared.plans.length} 个文件）：\n\n`
+  );
 
-  for (const [file, fileRewrites] of byFile) {
-    const abs = join(root, file);
-    const content = await readFile(abs, "utf8");
-    const newContent = applyToContent(content, fileRewrites);
+  for (const plan of prepared.plans) {
+    const { file, rewrites: fileRewrites } = plan;
 
     // 打印每一处改动，供人工核对。
     const sorted = [...fileRewrites].sort((a, b) => a.line - b.line);
     for (const r of sorted) {
       process.stdout.write(`  ${file}:${r.line}  ${r.before}  →  ${r.after}\n`);
     }
-
-    if (cmd.write) {
-      await writeFile(abs, newContent, "utf8");
-    }
   }
 
-  process.stdout.write(
-    cmd.write
-      ? `\n已写回 ${byFile.size} 个文件\n`
-      : `\n预览模式，未写回文件；加 --write 才会真正修改\n`
-  );
+  if (!cmd.write) {
+    process.stdout.write(`\n预览模式，未写回文件；加 --write 才会真正修改\n`);
+    return 0;
+  }
+
+  const applied = await executeApply(prepared.plans);
+  if (!applied.ok) {
+    process.stderr.write(`\napply 事务失败（${applied.status}）：\n`);
+    for (const error of applied.errors) {
+      process.stderr.write(`  ${error.file}: ${error.reason}`);
+      if (error.backupPath) process.stderr.write(`；备份：${error.backupPath}`);
+      if (error.stagedPath) process.stderr.write(`；暂存：${error.stagedPath}`);
+      process.stderr.write("\n");
+    }
+    return 1;
+  }
+
+  process.stdout.write(`\n已安全写回 ${applied.files.length} 个文件\n`);
   return 0;
 }
 

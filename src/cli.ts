@@ -43,7 +43,7 @@ scan 用法:
 
 apply 用法:
   jev-entropy-gate apply --rules <rule.yaml> --dir <dir> [--write] [--concurrency N]
-    --rules <path>       规则文件（YAML，必须含 replace 字段）
+    --rules <path>       规则文件（YAML；regex 必须含 replace，ast-grep 必须含 fix）
     --dir <path>         要改写的仓库目录
     --write              真正写回文件；不加则只预览改动
 

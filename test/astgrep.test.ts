@@ -11,7 +11,7 @@ function rule(pattern: string, fix?: string) {
     task: "t",
     engine: "ast-grep",
     language: "typescript",
-    ...(fix ? { fix } : {})
+    ...(fix !== undefined ? { fix } : {})
   });
 }
 
@@ -56,6 +56,16 @@ test("单节点 metavariable（$NAME）被正确替换", () => {
     rule("console.$METHOD($ARG)", "logger.$METHOD($ARG)")
   );
   assert.equal(found[0]!.replacement, "logger.log(msg)");
+});
+
+test("空字符串 fix 计算为空 replacement", () => {
+  const code = "console.log(msg)";
+  const found = matcher.findCandidates(
+    "a.ts",
+    code,
+    rule("console.log($ARG)", "")
+  );
+  assert.equal(found[0]!.replacement, "");
 });
 
 test("语法错误的代码返回空数组，不抛错", () => {

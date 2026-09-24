@@ -5,6 +5,7 @@ import type { Rule } from "./rules.ts";
 import { matcherFor } from "./matcher/index.ts";
 import { shouldKeep } from "./prefilter.ts";
 import { matchesAny } from "./glob.ts";
+import { computeFileHash } from "./cache.ts";
 
 /** Directories always skipped when walking the tree. */
 const ALWAYS_EXCLUDED = new Set([
@@ -57,11 +58,19 @@ export async function locate(rootDir: string, rule: Rule): Promise<LocateResult>
     if (rule.include && !matchesAny(rel, rule.include)) continue;
     if (matchesAny(rel, rule.exclude)) continue;
 
-    const content = await readFile(file, "utf8");
+    const bytes = await readFile(file);
+    let content: string;
+    try {
+      content = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+    } catch {
+      // Binary or otherwise invalid UTF-8 files are not source files we can safely scan.
+      continue;
+    }
+    const sourceHash = computeFileHash(bytes);
     const found = matcher.findCandidates(rel, content, rule);
     totalLocated += found.length;
     for (const c of found) {
-      if (shouldKeep(c)) candidates.push(c);
+      if (shouldKeep(c)) candidates.push({ ...c, sourceHash });
       else prefilteredOut++;
     }
   }

@@ -67,7 +67,7 @@ export class AstGrepMatcher implements Matcher {
     for (const match of matches) {
       const range = match.range();
       const line = range.start.line + 1; // ast-grep 行号从 0 数，转成从 1 数
-      const replacement = rule.fix
+      const replacement = rule.fix !== undefined
         ? computeReplacement(match, rule.fix, content)
         : undefined;
 

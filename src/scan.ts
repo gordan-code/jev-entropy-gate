@@ -1,11 +1,9 @@
-import { readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
 import type { Candidate, ScanResult, SiteResult, EntropyBand } from "./types.ts";
 import type { Rule } from "./rules.ts";
 import { locate } from "./locate.ts";
 import { classifyCandidate } from "./classify.ts";
 import { JevClient } from "./jev/client.ts";
-import { computeFileHash, computeRuleKey, loadCache, saveCache } from "./cache.ts";
+import { computeRuleKey, loadCache, saveCache } from "./cache.ts";
 
 export interface ScanOptions {
   rule: Rule;
@@ -35,23 +33,35 @@ export async function scan(options: ScanOptions): Promise<ScanResult> {
   const sites: SiteResult[] = [];
   let reusedSites = 0;
   let rejudgedSites = 0;
-  const nextCache: { ruleKey: string; files: Record<string, { hash: string; sites: SiteResult[] }> } = {
+  const nextCache: {
+    version: 2;
+    ruleKey: string;
+    files: Record<string, { hash: string; sites: SiteResult[] }>;
+  } = {
+    version: 2,
     ruleKey: computeRuleKey(rule),
     files: {}
   };
 
   if (options.cachePath) {
     const cache = await loadCache(options.cachePath);
-    const rootAbs = resolve(rootDir);
 
     // 按文件分组，保持 locate 的遍历顺序。
     const byFile = groupByFile(candidates);
     for (const [file, fileCandidates] of byFile) {
-      const content = await readFile(join(rootAbs, file), "utf8");
-      const hash = computeFileHash(content);
+      const hash = fileCandidates[0]?.sourceHash;
+      if (!hash || fileCandidates.some((candidate) => candidate.sourceHash !== hash)) {
+        throw new Error(`文件 ${file} 的候选点缺少一致的 sourceHash。`);
+      }
       const cached = cache?.files[file];
 
-      if (cache && cache.ruleKey === nextCache.ruleKey && cached && cached.hash === hash) {
+      if (
+        cache &&
+        cache.ruleKey === nextCache.ruleKey &&
+        cached &&
+        cached.hash === hash &&
+        sameCachedSites(cached.sites, fileCandidates)
+      ) {
         // 文件没变、规则没变，复用上次判定。
         sites.push(...cached.sites);
         nextCache.files[file] = cached;
@@ -95,6 +105,25 @@ export async function scan(options: ScanOptions): Promise<ScanResult> {
     result.cacheStats = { reusedSites, rejudgedSites };
   }
   return result;
+}
+
+/** 缓存不仅要匹配文件哈希，还必须对应本次定位出的同一批候选点。 */
+function sameCachedSites(cached: SiteResult[], current: Candidate[]): boolean {
+  if (cached.length !== current.length) return false;
+  return cached.every((site, index) => sameCandidate(site.candidate, current[index]!));
+}
+
+function sameCandidate(a: Candidate, b: Candidate): boolean {
+  return (
+    a.file === b.file &&
+    a.sourceHash === b.sourceHash &&
+    a.line === b.line &&
+    a.column === b.column &&
+    a.offset === b.offset &&
+    a.snippet === b.snippet &&
+    a.matched === b.matched &&
+    a.replacement === b.replacement
+  );
 }
 
 /** 把候选点按文件分组，保持文件首次出现的顺序。 */

@@ -9,6 +9,8 @@ export type EntropyBand = "auto" | "assisted" | "manual";
 export interface Candidate {
   /** 相对扫描根目录的文件路径，用正斜杠。 */
   file: string;
+  /** 原始文件字节的完整 SHA-256，用于 apply 前确认源码未被修改。 */
+  sourceHash?: string;
   /** 匹配开始的行号（从 1 数）。 */
   line: number;
   /** 匹配开始的列号（从 1 数）。 */

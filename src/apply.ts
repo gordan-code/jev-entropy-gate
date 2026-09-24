@@ -5,6 +5,8 @@ import type { Rule } from "./rules.ts";
 export interface Rewrite {
   /** 文件路径（相对根目录）。 */
   file: string;
+  /** 定位时文件原始字节的完整 SHA-256。 */
+  sourceHash?: string;
   /** 匹配文本在文件里的字符偏移（从 0 数）。 */
   offset: number;
   /** 替换前的文本。 */
@@ -36,7 +38,7 @@ export function planRewrites(sites: SiteResult[], rule: Rule): Rewrite[] {
       // ast-grep 引擎预填的结果。
       after = site.candidate.replacement;
     } else {
-      if (!rule.replace || !regex) {
+      if (rule.replace === undefined || !regex) {
         throw new Error(
           `规则 "${rule.id}" 没有 replace 字段（regex 引擎），无法执行 apply`
         );
@@ -46,6 +48,7 @@ export function planRewrites(sites: SiteResult[], rule: Rule): Rewrite[] {
 
     rewrites.push({
       file: site.candidate.file,
+      sourceHash: site.candidate.sourceHash,
       offset: site.candidate.offset,
       before: site.candidate.matched,
       after,
