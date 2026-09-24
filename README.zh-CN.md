@@ -59,6 +59,7 @@ jevg --help
 如果是在源码仓库中本地开发，可以安装当前目录：
 
 ```bash
+npm run build
 npm install -g .
 # 或者开发时用软链接，改代码即时生效：
 # npm link

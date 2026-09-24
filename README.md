@@ -59,6 +59,7 @@ jevg --help
 For local development from a checkout, install the package directory instead:
 
 ```bash
+npm run build
 npm install -g .
 # or, for development with a symlink so changes apply instantly:
 # npm link

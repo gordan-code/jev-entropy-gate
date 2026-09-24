@@ -1,16 +1,21 @@
 #!/usr/bin/env node
 
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { tmpdir } from "node:os";
 
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const validatorPath = join(rootDir, "scripts", "assert-package-files.mjs");
+const npmCliFromEnvironment = process.env.npm_execpath;
+const npmCliPath = npmCliFromEnvironment
+  ? resolve(npmCliFromEnvironment)
+  : join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js");
+let packDirectory;
 let temporaryPrefix;
-let tarballPath;
+let primaryError;
+const cleanupErrors = [];
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -26,6 +31,13 @@ function run(command, args, options = {}) {
   return result;
 }
 
+function runNpm(args, options = {}) {
+  if (!existsSync(npmCliPath)) {
+    throw new Error(`找不到 npm CLI entry：${npmCliPath}`);
+  }
+  return run(process.execPath, [npmCliPath, ...args], options);
+}
+
 function assertPackageListing(packOutput) {
   run(process.execPath, [validatorPath], { input: packOutput });
 }
@@ -36,7 +48,7 @@ function assertUnderPrefix(path, prefix) {
   const comparisonPath = process.platform === "win32" ? resolvedPath.toLowerCase() : resolvedPath;
   const comparisonPrefix = process.platform === "win32" ? resolvedPrefix.toLowerCase() : resolvedPrefix;
   const pathRelativeToPrefix = relative(comparisonPrefix, comparisonPath);
-  if (pathRelativeToPrefix.startsWith(`..${sep}`) || pathRelativeToPrefix === ".." || pathRelativeToPrefix.includes(`..${sep}`)) {
+  if (pathRelativeToPrefix.startsWith(`..${sep}`) || pathRelativeToPrefix === ".." || isAbsolute(pathRelativeToPrefix)) {
     throw new Error(`解析到临时前缀之外的 jevg：${resolvedPath}`);
   }
   return resolvedPath;
@@ -50,50 +62,81 @@ function resolveExecutable(environment) {
   return resolved;
 }
 
-try {
-  const npmOptions = { shell: process.platform === "win32" };
-  run(npmCommand, ["run", "build"], { ...npmOptions, stdio: "inherit" });
+function resolveTarball(packReport) {
+  if (!packReport || typeof packReport.filename !== "string") {
+    throw new Error("npm pack JSON 缺少 tarball filename");
+  }
 
-  const packed = run(npmCommand, ["pack", "--ignore-scripts", "--json"], npmOptions);
-  assertPackageListing(packed.stdout);
+  const filename = packReport.filename;
+  if (filename !== basename(filename) || filename.includes("/") || filename.includes("\\")) {
+    throw new Error(`npm pack filename 不是安全 basename：${filename}`);
+  }
+
+  const candidate = resolve(packDirectory, filename);
+  const candidateRelative = relative(packDirectory, candidate);
+  if (!candidateRelative || candidateRelative.startsWith(`..${sep}`) || candidateRelative === ".." || isAbsolute(candidateRelative)) {
+    throw new Error(`npm pack tarball 不在临时目录内：${candidate}`);
+  }
+  if (!existsSync(candidate)) throw new Error(`npm pack 未生成 tarball：${candidate}`);
+  return candidate;
+}
+
+function cleanupTemporaryDirectory(label, path) {
+  if (!path) return;
+  try {
+    rmSync(path, { recursive: true, force: true });
+  } catch (error) {
+    cleanupErrors.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+try {
+  runNpm(["run", "build"], { stdio: "inherit" });
+
+  packDirectory = mkdtempSync(join(tmpdir(), "jev-entropy-gate-pack-"));
+  const packed = runNpm([
+    "pack",
+    "--ignore-scripts",
+    "--json",
+    "--pack-destination",
+    packDirectory
+  ]);
   const reports = JSON.parse(packed.stdout);
   const report = Array.isArray(reports) ? reports[0] : reports;
-  if (!report || typeof report.filename !== "string") throw new Error("npm pack JSON 缺少 tarball filename");
-  tarballPath = resolve(rootDir, report.filename);
+  assertPackageListing(packed.stdout);
+  const tarballPath = resolveTarball(report);
 
   temporaryPrefix = mkdtempSync(join(tmpdir(), "jev-entropy-gate-smoke-"));
-  run(npmCommand, ["install", "--global", "--prefix", temporaryPrefix, tarballPath], npmOptions);
+  runNpm(["install", "--global", "--prefix", temporaryPrefix, tarballPath]);
 
   const globalBinDir = process.platform === "win32" ? temporaryPrefix : join(temporaryPrefix, "bin");
   const environment = {
     ...process.env,
-    PATH: `${globalBinDir}${process.platform === "win32" ? ";" : ":"}${process.env.PATH ?? ""}`
+    PATH: `${globalBinDir}${delimiter}${process.env.PATH ?? ""}`
   };
   const executable = resolveExecutable(environment);
-  const checkedExecutable = assertUnderPrefix(executable, temporaryPrefix);
-  const expectedExecutable = process.platform === "win32"
-    ? [
-      join(temporaryPrefix, "jevg.cmd"),
-      join(temporaryPrefix, "jevg.ps1"),
-      join(temporaryPrefix, "jevg")
-    ]
-    : join(temporaryPrefix, "bin", "jevg");
-  const expectedExecutables = Array.isArray(expectedExecutable) ? expectedExecutable : [expectedExecutable];
-  const normalizedExecutable = resolve(checkedExecutable).toLowerCase();
-  if (!expectedExecutables.some((candidate) => normalizedExecutable === resolve(candidate).toLowerCase())) {
-    throw new Error(`jevg 解析路径不是隔离前缀入口：${checkedExecutable}`);
-  }
+  assertUnderPrefix(executable, temporaryPrefix);
 
-  const help = run(checkedExecutable, ["--help"], {
-    env: environment,
-    shell: process.platform === "win32"
-  });
+  const help = process.platform === "win32"
+    ? run(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "jevg --help"], { env: environment })
+    : run("jevg", ["--help"], { env: environment });
   if (!/^jev-entropy-gate$/m.test(help.stdout)) {
     throw new Error(`隔离安装的 jevg --help 输出异常：\n${help.stdout}`);
   }
 
-  console.log(`tarball smoke test 通过：${checkedExecutable}`);
+  console.log(`tarball smoke test 通过：${executable}`);
+} catch (error) {
+  primaryError = error;
 } finally {
-  if (tarballPath) rmSync(tarballPath, { force: true });
-  if (temporaryPrefix) rmSync(temporaryPrefix, { recursive: true, force: true });
+  cleanupTemporaryDirectory("安装前缀", temporaryPrefix);
+  cleanupTemporaryDirectory("打包临时目录", packDirectory);
+}
+
+if (primaryError) {
+  console.error(`tarball smoke test 失败：${primaryError instanceof Error ? primaryError.message : String(primaryError)}`);
+  if (cleanupErrors.length > 0) console.error(`清理也失败：${cleanupErrors.join("；")}`);
+  process.exitCode = 1;
+} else if (cleanupErrors.length > 0) {
+  console.error(`tarball smoke test 清理失败：${cleanupErrors.join("；")}`);
+  process.exitCode = 1;
 }

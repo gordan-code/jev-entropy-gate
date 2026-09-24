@@ -11,11 +11,12 @@
     "jevg": "bin/jevg.mjs"
   },
   "files": [
-    "bin/",
-    "dist/",
+    "bin/jevg.mjs",
+    "dist/index.js",
     "README.md",
     "README.zh-CN.md",
-    "LICENSE"
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "engines": {
     "node": ">=22.18.0"
