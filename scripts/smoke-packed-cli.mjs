@@ -49,7 +49,7 @@ function assertUnderPrefix(path, prefix) {
   const comparisonPrefix = process.platform === "win32" ? resolvedPrefix.toLowerCase() : resolvedPrefix;
   const pathRelativeToPrefix = relative(comparisonPrefix, comparisonPath);
   if (pathRelativeToPrefix.startsWith(`..${sep}`) || pathRelativeToPrefix === ".." || isAbsolute(pathRelativeToPrefix)) {
-    throw new Error(`解析到临时前缀之外的 jevg：${resolvedPath}`);
+    throw new Error(`解析到临时前缀之外的 jevg：${resolvedPath}；前缀=${resolvedPrefix}；相对路径=${pathRelativeToPrefix}`);
   }
   return resolvedPath;
 }
