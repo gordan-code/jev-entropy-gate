@@ -243,7 +243,7 @@ async function getOwnerAndAccessSddl(path: string): Promise<string> {
   return await new Promise((resolve, reject) => {
     execFile(
       "powershell.exe",
-      ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", "$a=Microsoft.PowerShell.Security\\Get-Acl -LiteralPath $env:P -ErrorAction Stop; $a.GetSecurityDescriptorSddlForm(([System.Security.AccessControl.AccessControlSections]::Owner -bor [System.Security.AccessControl.AccessControlSections]::Access) )"],
+      ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", "$ProgressPreference='SilentlyContinue'; $securityModulePath=Join-Path $PSHOME 'Modules\\Microsoft.PowerShell.Security\\Microsoft.PowerShell.Security.psd1'; Import-Module -Name $securityModulePath -ErrorAction Stop; $a=Microsoft.PowerShell.Security\\Get-Acl -LiteralPath $env:P -ErrorAction Stop; $a.GetSecurityDescriptorSddlForm(([System.Security.AccessControl.AccessControlSections]::Owner -bor [System.Security.AccessControl.AccessControlSections]::Access) )"],
       { windowsHide: true, env: windowsPowerShellTestEnv(path) },
       (error, stdout, stderr) => {
         if (error) reject(new Error(`${error.message}: ${stderr}`));

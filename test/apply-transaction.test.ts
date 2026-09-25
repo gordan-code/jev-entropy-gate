@@ -23,6 +23,7 @@ import {
 } from "../src/apply/transaction.ts";
 import type { Rewrite } from "../src/apply.ts";
 import { main } from "../src/index.ts";
+import { normalizeWindowsPowerShellModulePath } from "../src/apply/windows-acl.ts";
 
 function hash(content: Buffer | string): string {
   return createHash("sha256").update(content).digest("hex");
@@ -1420,14 +1421,14 @@ function deterministicAutoFetch(): Promise<Response> {
 
 async function readWindowsOwnerAndAccessSddl(path: string): Promise<string> {
   const command =
+    "$ProgressPreference='SilentlyContinue'; " +
+    "$securityModulePath=Join-Path $PSHOME 'Modules\\Microsoft.PowerShell.Security\\Microsoft.PowerShell.Security.psd1'; " +
+    "Import-Module -Name $securityModulePath -ErrorAction Stop; " +
     "$a=Microsoft.PowerShell.Security\\Get-Acl -LiteralPath $env:JEV_TEST_ACL_PATH -ErrorAction Stop; " +
     "$sections=[System.Security.AccessControl.AccessControlSections]::Owner -bor [System.Security.AccessControl.AccessControlSections]::Access; " +
     "[Console]::Out.Write($a.GetSecurityDescriptorSddlForm($sections))";
   const env: NodeJS.ProcessEnv = { ...process.env, JEV_TEST_ACL_PATH: path };
-  if (typeof env.PSModulePath === "string") {
-    const compatible = env.PSModulePath.split(";").filter((entry) => !/powershell7/i.test(entry));
-    if (compatible.length > 0) env.PSModulePath = compatible.join(";");
-  }
+  normalizeWindowsPowerShellModulePath(env);
   return await new Promise<string>((resolve, reject) => {
     execFile(
       "powershell.exe",
