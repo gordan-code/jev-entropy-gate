@@ -91,8 +91,8 @@ test("filters the standard PowerShell 7 module path before spawning Windows Powe
   };
   normalizeWindowsPowerShellModulePath(env);
   assert.deepEqual(env.PSModulePath!.split(";"), [
+    "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules",
     "C:\\Program Files\\WindowsPowerShell\\Modules",
-    "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules"
   ]);
 
   const fallbackEnv: NodeJS.ProcessEnv = {
@@ -104,6 +104,16 @@ test("filters the standard PowerShell 7 module path before spawning Windows Powe
   };
   normalizeWindowsPowerShellModulePath(fallbackEnv);
   assert.equal(fallbackEnv.PSModulePath, "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules");
+
+  const incompleteEnv: NodeJS.ProcessEnv = {
+    SystemRoot: "C:\\Windows",
+    PSModulePath: "C:\\Program Files\\PowerShell\\Modules"
+  };
+  normalizeWindowsPowerShellModulePath(incompleteEnv);
+  assert.deepEqual(incompleteEnv.PSModulePath!.split(";"), [
+    "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules",
+    "C:\\Program Files\\PowerShell\\Modules"
+  ]);
 });
 
 test("rejects unknown phases before spawning", async () => {

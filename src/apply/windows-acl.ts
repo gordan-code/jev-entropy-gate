@@ -115,24 +115,33 @@ export async function applyWindowsArtifactAcl(
 
 /**
  * `powershell.exe` is Windows PowerShell 5.1. PowerShell 7 module directories
- * can contain incompatible modules; remove those entries while preserving the
- * Windows PowerShell and shared module directories needed by this child.
+ * can contain incompatible modules; remove those entries and ensure the
+ * Windows PowerShell built-in module directory is searched first.
  */
 export function normalizeWindowsPowerShellModulePath(env: NodeJS.ProcessEnv): void {
-  if (typeof env.PSModulePath !== "string") return;
-  const entries = env.PSModulePath.split(";");
+  const systemRoot = env.SystemRoot ?? env.SYSTEMROOT ?? env.windir ?? env.WINDIR;
+  const windowsPowerShellModules =
+    typeof systemRoot === "string" && systemRoot.length > 0
+      ? `${systemRoot}\\System32\\WindowsPowerShell\\v1.0\\Modules`
+      : undefined;
+  const entries = typeof env.PSModulePath === "string" ? env.PSModulePath.split(";") : [];
   const isPowerShell7ModulePath = (entry: string): boolean =>
     /(?:^|[\\/])powershell7(?:[\\/]|$)/i.test(entry) ||
     /(?:^|[\\/])powershell[\\/]+7(?:[\\/]|$)/i.test(entry);
-  if (!entries.some(isPowerShell7ModulePath)) return;
-  const compatible = entries.filter((entry) => !isPowerShell7ModulePath(entry));
-  if (compatible.length > 0) {
-    env.PSModulePath = compatible.join(";");
-  } else if (typeof env.SystemRoot === "string" && env.SystemRoot.length > 0) {
-    env.PSModulePath = `${env.SystemRoot}\\System32\\WindowsPowerShell\\v1.0\\Modules`;
-  } else {
-    delete env.PSModulePath;
-  }
+  const normalizedWindowsPowerShellModules = windowsPowerShellModules
+    ?.replace(/[\\/]+$/, "")
+    .toLowerCase();
+  const compatible = entries.filter((entry) => {
+    const normalizedEntry = entry.replace(/[\\/]+$/, "").toLowerCase();
+    return (
+      entry.length > 0 &&
+      !isPowerShell7ModulePath(entry) &&
+      normalizedEntry !== normalizedWindowsPowerShellModules
+    );
+  });
+  const modulePaths = [...(windowsPowerShellModules ? [windowsPowerShellModules] : []), ...compatible];
+  if (modulePaths.length > 0) env.PSModulePath = modulePaths.join(";");
+  else delete env.PSModulePath;
 }
 
 function defaultWindowsAclRunner(
