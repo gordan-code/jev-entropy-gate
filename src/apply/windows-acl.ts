@@ -38,6 +38,7 @@ export const WINDOWS_ACL_MAX_OUTPUT_BYTES = 64 * 1024;
  * source or an argument interpreted by a shell.
  */
 const POWERSHELL_SCRIPT = String.raw`$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 try {
     $targetPath = $env:JEV_ACL_TARGET
     $artifactPath = $env:JEV_ACL_ARTIFACT
@@ -49,6 +50,9 @@ try {
     if ([string]::IsNullOrEmpty($targetPath) -or [string]::IsNullOrEmpty($artifactPath)) {
         throw 'Windows ACL target and artifact paths are required.'
     }
+
+    $securityModulePath = Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1'
+    Import-Module -Name $securityModulePath -ErrorAction Stop
 
     $sections = [System.Security.AccessControl.AccessControlSections]::Owner -bor [System.Security.AccessControl.AccessControlSections]::Access
     $targetAcl = Microsoft.PowerShell.Security\Get-Acl -LiteralPath $targetPath -ErrorAction Stop
@@ -225,7 +229,7 @@ function runAclProcess(
         return;
       }
       if (stderr.byteLength !== 0) {
-        fail(new Error("Windows ACL PowerShell wrote to stderr."), false);
+        fail(new Error(`Windows ACL PowerShell wrote to stderr: ${stderr.toString("utf8", 0, 4_096)}`), false);
         return;
       }
       if (!stdout.equals(Buffer.from("OK\r\n", "ascii")) && !stdout.equals(Buffer.from("OK\n", "ascii"))) {

@@ -66,6 +66,9 @@ test("before-write starts powershell with a static encoded script and ACL enviro
 
   const script = Buffer.from(call.args[4]!, "base64").toString("utf16le");
   assert.match(script, /^\$ErrorActionPreference\s*=\s*'Stop'/);
+  assert.match(script, /^\$ProgressPreference\s*=\s*'SilentlyContinue'/m);
+  assert.match(script, /Import-Module/);
+  assert.match(script, /Microsoft\.PowerShell\.Security\.psd1/);
   assert.match(script, /Microsoft\.PowerShell\.Security\\Get-Acl/);
   assert.match(script, /Microsoft\.PowerShell\.Security\\Set-Acl/);
   assert.match(script, /GetSecurityDescriptorSddlForm/);
