@@ -31,6 +31,10 @@ const packageRoot = join(testDir, "..");
 const packageValidatorPath = join(packageRoot, "scripts", "assert-package-files.mjs");
 const thirdPartyNoticesPath = join(packageRoot, "THIRD_PARTY_NOTICES.md");
 const packageLock = readFileSync(join(packageRoot, "package-lock.json"), "utf8");
+const packageLockJson = JSON.parse(packageLock) as {
+  version?: string;
+  packages?: { ""?: { version?: string } };
+};
 const expectedPackagePaths = [
   "package.json",
   "bin/jevg.mjs",
@@ -92,7 +96,9 @@ test("built CLI forwards invalid-command failures and does not execute main twic
 test("package metadata is publishable and keeps native runtime dependency exact", () => {
   assert.notEqual(packageJson.private, true);
   assert.equal(packageJson.name, "jev-entropy-gate");
-  assert.equal(packageJson.version, "0.1.0");
+  assert.match(packageJson.version ?? "", /^\d+\.\d+\.\d+$/);
+  assert.equal(packageLockJson.version, packageJson.version);
+  assert.equal(packageLockJson.packages?.[""]?.version, packageJson.version);
   assert.equal(packageJson.type, "module");
   assert.equal(packageJson.engines?.node, ">=22.18.0");
   assert.equal(packageJson.dependencies?.["@ast-grep/napi"], "0.45.3");

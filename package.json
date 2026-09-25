@@ -1,6 +1,6 @@
 {
   "name": "jev-entropy-gate",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Use Jev's calibrated probability entropy to decide which migration/refactor sites can be safely automated, and which need a human.",
   "type": "module",
   "repository": {
