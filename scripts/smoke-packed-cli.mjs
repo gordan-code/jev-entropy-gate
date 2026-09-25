@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -43,8 +43,8 @@ function assertPackageListing(packOutput) {
 }
 
 function assertUnderPrefix(path, prefix) {
-  const resolvedPath = resolve(path);
-  const resolvedPrefix = resolve(prefix);
+  const resolvedPath = realpathSync.native(resolve(path));
+  const resolvedPrefix = realpathSync.native(resolve(prefix));
   const comparisonPath = process.platform === "win32" ? resolvedPath.toLowerCase() : resolvedPath;
   const comparisonPrefix = process.platform === "win32" ? resolvedPrefix.toLowerCase() : resolvedPrefix;
   const pathRelativeToPrefix = relative(comparisonPrefix, comparisonPath);
