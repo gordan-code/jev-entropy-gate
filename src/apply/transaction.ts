@@ -29,10 +29,11 @@ export interface ApplyPlan {
   identity: FileIdentity;
 }
 
-/** Device/file-id pair used to prevent writes through a replaced path. */
+/** Device, file-id, and creation time used to detect replaced paths, including inode reuse. */
 export interface FileIdentity {
   dev: string;
   ino: string;
+  birthtimeNs: string;
 }
 
 export interface PrepareError {
@@ -1092,12 +1093,16 @@ function isSafeArtifactPath(path: string, directory: string): boolean {
   return resolve(dirname(path)) === resolve(directory) && basename(path).startsWith(".");
 }
 
-function fileIdentity(stats: Pick<FileStats, "dev" | "ino">): FileIdentity | undefined {
+function fileIdentity(stats: FileStats): FileIdentity | undefined {
   const { dev, ino } = stats;
+  // Node exposes nanosecond bigint timestamp fields at runtime for BigIntStats;
+  // some @types/node versions omit those fields from the declaration.
+  const { birthtimeNs } = stats as FileStats & { birthtimeNs?: number | bigint };
   const devValue = identityPart(dev, false);
   const inoValue = identityPart(ino, true);
-  if (devValue === undefined || inoValue === undefined) return undefined;
-  return { dev: devValue, ino: inoValue };
+  const birthtimeValue = birthtimeNs === undefined ? undefined : identityPart(birthtimeNs, true);
+  if (devValue === undefined || inoValue === undefined || birthtimeValue === undefined) return undefined;
+  return { dev: devValue, ino: inoValue, birthtimeNs: birthtimeValue };
 }
 
 function identityPart(value: number | bigint, requirePositive: boolean): string | undefined {
@@ -1110,19 +1115,26 @@ function identityPart(value: number | bigint, requirePositive: boolean): string 
 }
 
 function isValidFileIdentity(value: unknown): value is FileIdentity {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Record<string, unknown>;
   return (
-    typeof value === "object" &&
-    value !== null &&
-    "dev" in value &&
-    "ino" in value &&
-    typeof value.dev === "string" &&
-    /^\d+$/.test(value.dev) &&
-    typeof value.ino === "string" &&
-    /^\d+$/.test(value.ino) &&
-    value.ino !== "0"
+    typeof candidate.dev === "string" &&
+    /^\d+$/.test(candidate.dev) &&
+    typeof candidate.ino === "string" &&
+    /^\d+$/.test(candidate.ino) &&
+    candidate.ino !== "0" &&
+    typeof candidate.birthtimeNs === "string" &&
+    /^\d+$/.test(candidate.birthtimeNs) &&
+    candidate.birthtimeNs !== "0"
   );
 }
 
 function sameIdentity(left: FileIdentity | undefined, right: FileIdentity | undefined): boolean {
-  return left !== undefined && right !== undefined && left.dev === right.dev && left.ino === right.ino;
+  return (
+    left !== undefined &&
+    right !== undefined &&
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.birthtimeNs === right.birthtimeNs
+  );
 }

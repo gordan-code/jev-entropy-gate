@@ -1129,6 +1129,32 @@ test("executeApply refuses to truncate a replacement inode after opening r+", as
   });
 });
 
+test("executeApply rejects a handle with a changed birth time when device and inode are reused", async () => {
+  await withTempRoot(async (root) => {
+    const plans = await plansFor(root, [["a.txt", "alpha\n"]]);
+    const base = defaultApplyIOForTest();
+    const io: ApplyIO = {
+      ...base,
+      open: async (path, flags, mode) => {
+        const handle = await base.open(path, flags, mode);
+        if (flags !== "r+") return handle;
+        return {
+          ...handle,
+          stat: async () => {
+            const stats = await handle.stat();
+            const birthtimeNs = (stats as typeof stats & { birthtimeNs: bigint }).birthtimeNs;
+            return { ...stats, birthtimeNs: birthtimeNs + 1n };
+          }
+        };
+      }
+    };
+
+    const result = errorResult(await executeApply(plans, io));
+    assert.match(result.errors[0]!.reason, /identity|身份|file/i);
+    assert.deepEqual(await readFile(join(root, "a.txt"), "utf8"), "alpha\n");
+  });
+});
+
 test("executeApply rejects a fake successful write with no bytesWritten", async () => {
   await withTempRoot(async (root) => {
     const plans = await plansFor(root, [["a.txt", "alpha\n"]]);
