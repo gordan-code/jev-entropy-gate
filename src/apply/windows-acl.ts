@@ -102,6 +102,7 @@ export async function applyWindowsArtifactAcl(
     JEV_ACL_ARTIFACT: artifactPath,
     JEV_ACL_PHASE: phase
   };
+  normalizeWindowsPowerShellModulePath(env);
 
   const options: SpawnOptions = {
     shell: false,
@@ -113,18 +114,25 @@ export async function applyWindowsArtifactAcl(
 }
 
 /**
- * `powershell.exe` is Windows PowerShell 5.1.  Some developer environments
- * prepend a PowerShell 7 module directory to PSModulePath; that directory's
- * security module cannot be loaded by 5.1 and makes module-qualified Get-Acl
- * fail.  Keep the inherited environment unchanged unless that known conflict
- * is present, then remove only the PS7 entry for this internal child.
+ * `powershell.exe` is Windows PowerShell 5.1. PowerShell 7 module directories
+ * can contain incompatible modules; remove those entries while preserving the
+ * Windows PowerShell and shared module directories needed by this child.
  */
-function normalizeWindowsPowerShellModulePath(env: NodeJS.ProcessEnv): void {
-  if (process.platform !== "win32" || typeof env.PSModulePath !== "string") return;
+export function normalizeWindowsPowerShellModulePath(env: NodeJS.ProcessEnv): void {
+  if (typeof env.PSModulePath !== "string") return;
   const entries = env.PSModulePath.split(";");
-  if (!entries.some((entry) => /powershell7/i.test(entry))) return;
-  const compatible = entries.filter((entry) => !/powershell7/i.test(entry));
-  if (compatible.length > 0) env.PSModulePath = compatible.join(";");
+  const isPowerShell7ModulePath = (entry: string): boolean =>
+    /(?:^|[\\/])powershell7(?:[\\/]|$)/i.test(entry) ||
+    /(?:^|[\\/])powershell[\\/]+7(?:[\\/]|$)/i.test(entry);
+  if (!entries.some(isPowerShell7ModulePath)) return;
+  const compatible = entries.filter((entry) => !isPowerShell7ModulePath(entry));
+  if (compatible.length > 0) {
+    env.PSModulePath = compatible.join(";");
+  } else if (typeof env.SystemRoot === "string" && env.SystemRoot.length > 0) {
+    env.PSModulePath = `${env.SystemRoot}\\System32\\WindowsPowerShell\\v1.0\\Modules`;
+  } else {
+    delete env.PSModulePath;
+  }
 }
 
 function defaultWindowsAclRunner(
@@ -132,9 +140,7 @@ function defaultWindowsAclRunner(
   args: readonly string[],
   options: SpawnOptions
 ): WindowsAclChild {
-  const env = options.env ? { ...options.env } : undefined;
-  if (env) normalizeWindowsPowerShellModulePath(env);
-  return spawnProcess(command, args, { ...options, ...(env ? { env } : {}) });
+  return spawnProcess(command, args, options);
 }
 
 function runAclProcess(

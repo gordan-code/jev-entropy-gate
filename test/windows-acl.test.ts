@@ -2,7 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
-import { applyWindowsArtifactAcl, type WindowsAclRunner } from "../src/apply/windows-acl.ts";
+import {
+  applyWindowsArtifactAcl,
+  normalizeWindowsPowerShellModulePath,
+  type WindowsAclRunner
+} from "../src/apply/windows-acl.ts";
 
 interface FakeChild {
   stdout: PassThrough;
@@ -73,6 +77,33 @@ test("after-write succeeds with the same protocol and does not interpolate paths
   await applyWindowsArtifactAcl("C:\\path with spaces\\artifact", "C:\\path with spaces\\target", "after-write", harness.runner);
   assert.equal(harness.call!.options.env.JEV_ACL_PHASE, "after-write");
   assert.doesNotMatch(harness.call!.args.join("\0"), /path with spaces/);
+});
+
+test("filters the standard PowerShell 7 module path before spawning Windows PowerShell", () => {
+  const env: NodeJS.ProcessEnv = {
+    SystemRoot: "C:\\Windows",
+    PSModulePath: [
+      "C:\\Program Files\\PowerShell\\7\\Modules",
+      "D:\\tools\\powershell7\\7\\Modules",
+      "C:\\Program Files\\WindowsPowerShell\\Modules",
+      "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules"
+    ].join(";")
+  };
+  normalizeWindowsPowerShellModulePath(env);
+  assert.deepEqual(env.PSModulePath!.split(";"), [
+    "C:\\Program Files\\WindowsPowerShell\\Modules",
+    "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules"
+  ]);
+
+  const fallbackEnv: NodeJS.ProcessEnv = {
+    SystemRoot: "C:\\Windows",
+    PSModulePath: [
+      "C:\\Program Files\\PowerShell\\7\\Modules",
+      "D:\\tools\\powershell7\\7\\Modules"
+    ].join(";")
+  };
+  normalizeWindowsPowerShellModulePath(fallbackEnv);
+  assert.equal(fallbackEnv.PSModulePath, "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules");
 });
 
 test("rejects unknown phases before spawning", async () => {
@@ -195,9 +226,6 @@ async function getOwnerAndAccessSddl(path: string): Promise<string> {
 
 function windowsPowerShellTestEnv(path: string): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, P: path };
-  if (typeof env.PSModulePath === "string") {
-    const compatible = env.PSModulePath.split(";").filter((entry) => !/powershell7/i.test(entry));
-    if (compatible.length > 0) env.PSModulePath = compatible.join(";");
-  }
+  normalizeWindowsPowerShellModulePath(env);
   return env;
 }
