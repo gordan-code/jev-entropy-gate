@@ -211,7 +211,15 @@ test("real ACL copying and verification runs only on Windows", { skip: process.p
   try {
     await writeFile(target, "target\n", "utf8");
     await writeFile(artifact, Buffer.alloc(0));
-    await applyWindowsArtifactAcl(artifact, target, "before-write");
+    try {
+      await applyWindowsArtifactAcl(artifact, target, "before-write");
+    } catch (error) {
+      const targetSddl = await getOwnerAndAccessSddl(target);
+      const artifactSddl = await getOwnerAndAccessSddl(artifact);
+      throw new Error(
+        `${error instanceof Error ? error.message : String(error)}\nTarget SDDL: ${targetSddl}\nArtifact SDDL: ${artifactSddl}`
+      );
+    }
     const targetSddl = await getOwnerAndAccessSddl(target);
     const artifactSddl = await getOwnerAndAccessSddl(artifact);
     assert.equal(artifactSddl, targetSddl);
