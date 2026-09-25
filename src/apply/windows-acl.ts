@@ -62,8 +62,8 @@ try {
     }
 
     $artifactAcl = Microsoft.PowerShell.Security\Get-Acl -LiteralPath $artifactPath -ErrorAction Stop
-    $targetSddl = $targetAcl.GetSecurityDescriptorSddlForm($sections)
-    $artifactSddl = $artifactAcl.GetSecurityDescriptorSddlForm($sections)
+    $targetSddl = $targetAcl.GetSecurityDescriptorSddlForm($sections) -replace 'D:(P)?(AR)?AI(?=\()', 'D:$1$2'
+    $artifactSddl = $artifactAcl.GetSecurityDescriptorSddlForm($sections) -replace 'D:(P)?(AR)?AI(?=\()', 'D:$1$2'
     if ($targetSddl -cne $artifactSddl) {
         throw 'Windows ACL security descriptor mismatch.'
     }

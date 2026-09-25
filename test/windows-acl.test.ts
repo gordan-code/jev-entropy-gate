@@ -8,6 +8,13 @@ import {
   type WindowsAclRunner
 } from "../src/apply/windows-acl.ts";
 
+test("ignores only the Windows auto-inherited DACL control bit when comparing ACL SDDL", () => {
+  const target = "O:BAD:(A;ID;FA;;;SY)(A;ID;FA;;;BA)";
+  assert.equal(normalizeWindowsAclSddl(target), normalizeWindowsAclSddl("O:BAD:AI(A;ID;FA;;;SY)(A;ID;FA;;;BA)"));
+  assert.notEqual(normalizeWindowsAclSddl(target), normalizeWindowsAclSddl("O:BAD:(A;ID;FR;;;SY)(A;ID;FA;;;BA)"));
+  assert.notEqual(normalizeWindowsAclSddl(target), normalizeWindowsAclSddl("O:BAD:P(A;ID;FA;;;SY)(A;ID;FA;;;BA)"));
+});
+
 interface FakeChild {
   stdout: PassThrough;
   stderr: PassThrough;
@@ -69,6 +76,7 @@ test("before-write starts powershell with a static encoded script and ACL enviro
   assert.match(script, /^\$ProgressPreference\s*=\s*'SilentlyContinue'/m);
   assert.match(script, /Import-Module/);
   assert.match(script, /Microsoft\.PowerShell\.Security\.psd1/);
+  assert.match(script, /D:\(P\)\?\(AR\)\?AI/);
   assert.match(script, /Microsoft\.PowerShell\.Security\\Get-Acl/);
   assert.match(script, /Microsoft\.PowerShell\.Security\\Set-Acl/);
   assert.match(script, /GetSecurityDescriptorSddlForm/);
@@ -222,7 +230,7 @@ test("real ACL copying and verification runs only on Windows", { skip: process.p
     }
     const targetSddl = await getOwnerAndAccessSddl(target);
     const artifactSddl = await getOwnerAndAccessSddl(artifact);
-    assert.equal(artifactSddl, targetSddl);
+    assert.equal(normalizeWindowsAclSddl(artifactSddl), normalizeWindowsAclSddl(targetSddl));
     await writeFile(artifact, "artifact\n", "utf8");
     await applyWindowsArtifactAcl(artifact, target, "after-write");
   } finally {
@@ -249,4 +257,8 @@ function windowsPowerShellTestEnv(path: string): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, P: path };
   normalizeWindowsPowerShellModulePath(env);
   return env;
+}
+
+function normalizeWindowsAclSddl(sddl: string): string {
+  return sddl.replace(/D:(P)?(AR)?AI(?=\()/, "D:$1$2");
 }
